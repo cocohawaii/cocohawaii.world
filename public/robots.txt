@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://cocohawaii-website.vercel.app/sitemap.xml
+
+# Disallow admin and debug pages
+Disallow: /member/admin
+Disallow: /debug
+Disallow: /api/debug-wix

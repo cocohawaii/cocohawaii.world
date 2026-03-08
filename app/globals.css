@@ -1,0 +1,903 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;600;700&family=Playfair+Display:wght@400;600;700&display=swap');
+
+:root {
+  --font-script: 'Dancing Script', cursive;
+  --font-serif: 'Playfair Display', serif;
+}
+
+@layer utilities {
+  .font-script {
+    font-family: var(--font-script);
+  }
+  
+  .font-serif {
+    font-family: var(--font-serif);
+  }
+  
+  .rainbow-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%);
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+  
+  .rainbow-gradient-alt {
+    background: linear-gradient(135deg, #f093fb 0%, #4facfe 25%, #00f2fe 50%, #667eea 75%, #764ba2 100%);
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+  
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in;
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-in;
+  }
+  
+  .animate-scaleIn {
+    animation: scaleIn 0.4s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes lock-glow {
+    0%, 100% {
+      filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.5));
+      transform: scale(1);
+    }
+    50% {
+      filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.9));
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-lock-glow {
+    animation: lock-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes firework-burst {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(0);
+    }
+    30% {
+      opacity: 1;
+      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.2);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.8);
+    }
+  }
+
+  .firework-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px currentColor;
+    animation: firework-burst 1.2s ease-out forwards;
+    pointer-events: none;
+  }
+
+  /* Bigger fireworks for winner reveal */
+  .firework-particle-winner {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+    animation: firework-burst-winner 2s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes firework-burst-winner {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.5);
+    }
+  }
+
+  @keyframes roulette-spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(var(--roulette-end-deg, 2160deg));
+    }
+  }
+
+  .roulette-wheel {
+    animation: roulette-spin 60s cubic-bezier(0.17, 0.67, 0.12, 0.99) forwards;
+  }
+
+  @keyframes trophy-glow {
+    0%, 100% {
+      filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.8));
+      transform: scale(1);
+    }
+    50% {
+      filter: drop-shadow(0 0 40px rgba(245, 158, 11, 1));
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-trophy-glow {
+    animation: trophy-glow 1.5s ease-in-out infinite;
+  }
+
+  @keyframes winner-reveal {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-winner-reveal {
+    animation: winner-reveal 0.6s ease-out forwards;
+  }
+
+  @keyframes countdown-blob-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.4;
+    }
+    25% {
+      transform: translate(4px, -6px) scale(1.1);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translate(-3px, 4px) scale(0.95);
+      opacity: 0.5;
+    }
+    75% {
+      transform: translate(5px, 3px) scale(1.05);
+      opacity: 0.55;
+    }
+  }
+
+  @keyframes countdown-shine {
+    0% {
+      background-position: -200% center;
+    }
+    100% {
+      background-position: 200% center;
+    }
+  }
+
+  .countdown-card {
+    position: relative;
+    overflow: visible;
+    box-shadow:
+      0 0 20px rgba(236, 72, 153, 0.4),
+      0 0 40px rgba(139, 92, 246, 0.3),
+      0 8px 24px rgba(6, 182, 212, 0.25),
+      0 4px 12px rgba(34, 197, 94, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .countdown-card-wrapper {
+    position: relative;
+  }
+
+  .countdown-card-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #ec4899, #8b5cf6, #06b6d4, #22c55e, #f472b6, #ec4899);
+    background-size: 400% 400%;
+    animation: gradient-shift 4s ease infinite;
+    z-index: -1;
+    filter: blur(8px);
+    opacity: 0.8;
+  }
+
+  .countdown-card-wrapper::after {
+    content: '';
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70%;
+    height: 16px;
+    background: radial-gradient(ellipse at center, rgba(236, 72, 153, 0.4) 0%, rgba(139, 92, 246, 0.3) 40%, rgba(6, 182, 212, 0.2) 70%, transparent 100%);
+    filter: blur(10px);
+    animation: countdown-blob-float 2.5s ease-in-out infinite;
+  }
+
+  .countdown-card-inner {
+    position: relative;
+    background: linear-gradient(135deg, #fce7f3 0%, #e9d5ff 25%, #cffafe 50%, #d1fae5 75%, #e0e7ff 100%);
+    background-size: 200% 200%;
+    border-radius: 0.75rem;
+    animation: gradient-shift 5s ease infinite;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .countdown-card-gradient-border {
+    padding: 2px;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #ec4899, #8b5cf6, #06b6d4, #22c55e, #f472b6, #ec4899);
+    background-size: 300% 300%;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  /* Ticket number cards – distinct from countdown (circular, amber/violet chip style) */
+  .ticket-card-outer {
+    padding: 3px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f59e0b, #d97706, #7c3aed, #6d28d9);
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  }
+
+  .ticket-card-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    background: linear-gradient(165deg, #faf5ff 0%, #ede9fe 40%, #e9d5ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(139, 92, 246, 0.1);
+  }
+
+  .ticket-card-inner .ticket-num {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #4c1d95;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .ticket-card-inner .ticket-label {
+    font-size: 0.5rem;
+    font-weight: 700;
+    color: #6d28d9;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  .ticket-card-sm .ticket-card-inner {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+
+  .ticket-card-sm .ticket-card-inner .ticket-num {
+    font-size: 1.125rem;
+  }
+
+  .ticket-card-sm .ticket-card-inner .ticket-label {
+    font-size: 0.4rem;
+  }
+
+  /* Larger ticket card for winner display */
+  .ticket-card-winner-lg {
+    padding: 4px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f59e0b, #d97706, #7c3aed, #6d28d9);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.4);
+  }
+
+  .ticket-card-winner-lg .ticket-card-inner {
+    width: 7.5rem;
+    height: 7.5rem;
+  }
+
+  .ticket-card-winner-lg .ticket-card-inner .ticket-num {
+    font-size: 2.75rem;
+  }
+
+  .ticket-card-winner-lg .ticket-card-inner .ticket-label {
+    font-size: 0.55rem;
+    line-height: 1.1;
+    text-align: center;
+    max-width: 4rem;
+  }
+
+  @keyframes pot-blob-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.5;
+    }
+    33% {
+      transform: translate(15px, -12px) scale(1.15);
+      opacity: 0.65;
+    }
+    66% {
+      transform: translate(-10px, 8px) scale(0.95);
+      opacity: 0.45;
+    }
+  }
+
+  .pot-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(45px);
+    animation: pot-blob-float 5s ease-in-out infinite;
+    z-index: 0;
+  }
+
+  .pot-blob-1 {
+    width: 90px;
+    height: 90px;
+    background: rgba(245, 158, 11, 0.5);
+    top: 50%;
+    left: 20%;
+    animation-delay: 0s;
+  }
+
+  .pot-blob-2 {
+    width: 110px;
+    height: 110px;
+    background: rgba(251, 191, 36, 0.45);
+    top: 30%;
+    right: 15%;
+    animation-delay: -1.5s;
+  }
+
+  .pot-blob-3 {
+    width: 80px;
+    height: 80px;
+    background: rgba(234, 179, 8, 0.5);
+    bottom: 20%;
+    left: 50%;
+    animation-delay: -3s;
+  }
+
+  @keyframes ticket-flow-pulse {
+    0%, 100% {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: translateX(6px) scale(1.1);
+    }
+  }
+
+  .remaining-tickets-card {
+    position: relative;
+    overflow: visible;
+    padding: 3px;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #ec4899, #8b5cf6, #06b6d4, #22c55e, #f472b6, #ec4899);
+    background-size: 300% 300%;
+    animation: gradient-shift 4s ease infinite;
+    box-shadow:
+      0 0 30px rgba(236, 72, 153, 0.3),
+      0 0 50px rgba(139, 92, 246, 0.25),
+      0 0 70px rgba(6, 182, 212, 0.2),
+      0 8px 32px rgba(0, 0, 0, 0.08);
+  }
+
+  .remaining-tickets-inner {
+    position: relative;
+    z-index: 2;
+    padding: 1rem 2rem;
+    border-radius: calc(1rem - 3px);
+    background: linear-gradient(135deg, #fdf4ff 0%, #f5f3ff 25%, #ecfeff 50%, #f0fdf4 75%, #fdf2f8 100%);
+    background-size: 200% 200%;
+    animation: gradient-shift 6s ease infinite;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  .remaining-tickets-blobs {
+    position: absolute;
+    inset: -8px;
+    border-radius: 1.25rem;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .remaining-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(35px);
+    opacity: 0.5;
+    animation: remaining-blob-float 5s ease-in-out infinite;
+  }
+
+  .remaining-blob-1 {
+    width: 80px;
+    height: 80px;
+    background: rgba(236, 72, 153, 0.4);
+    top: 30%;
+    left: 10%;
+    animation-delay: 0s;
+  }
+
+  .remaining-blob-2 {
+    width: 100px;
+    height: 100px;
+    background: rgba(139, 92, 246, 0.35);
+    top: 20%;
+    right: 15%;
+    animation-delay: -1.5s;
+  }
+
+  .remaining-blob-3 {
+    width: 70px;
+    height: 70px;
+    background: rgba(6, 182, 212, 0.4);
+    bottom: 20%;
+    left: 40%;
+    animation-delay: -3s;
+  }
+
+  @keyframes remaining-blob-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.5;
+    }
+    33% {
+      transform: translate(8px, -10px) scale(1.1);
+      opacity: 0.6;
+    }
+    66% {
+      transform: translate(-6px, 6px) scale(0.95);
+      opacity: 0.45;
+    }
+  }
+  
+  @keyframes gradient-flow {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  @keyframes gradient-text {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+
+  /* Slow scroll marquee (content moves right) */
+  @keyframes scroll-marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-scroll-marquee {
+    animation: scroll-marquee 60s linear infinite;
+  }
+
+  /* Art checkbox check animation */
+  @keyframes art-check {
+    0% {
+      transform: scale(0.9);
+      opacity: 0.5;
+      box-shadow: 0 0 0 0px rgba(236, 72, 153, 0.4);
+    }
+    25% {
+      transform: scale(1.05);
+      opacity: 0.8;
+      box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.3), 0 0 0 8px rgba(168, 85, 247, 0.2);
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.9;
+      box-shadow: 0 0 0 6px rgba(236, 72, 153, 0.4), 0 0 0 12px rgba(168, 85, 247, 0.3);
+    }
+    75% {
+      transform: scale(1.05);
+      opacity: 0.95;
+      box-shadow: 0 0 0 8px rgba(236, 72, 153, 0.5), 0 0 0 16px rgba(168, 85, 247, 0.4);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+      box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.3), 0 0 0 6px rgba(168, 85, 247, 0.2), 0 4px 6px rgba(236, 72, 153, 0.4);
+    }
+  }
+  
+  .animate-art-check {
+    animation: art-check 2.5s ease-in-out;
+  }
+  
+  /* Checkmark animation */
+  @keyframes checkmark {
+    0% {
+      stroke-dasharray: 0, 100;
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0);
+    }
+    50% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+    100% {
+      stroke-dasharray: 100, 0;
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  
+  .animate-checkmark {
+    animation: checkmark 0.5s ease-out;
+  }
+  
+  /* Price addition animation - breathing/blinking effect */
+  @keyframes price-add {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+      color: rgb(219, 39, 119);
+    }
+    25% {
+      transform: scale(1.1);
+      opacity: 0.9;
+      color: rgb(236, 72, 153);
+    }
+    50% {
+      transform: scale(1.15);
+      opacity: 1;
+      color: rgb(168, 85, 247);
+    }
+    75% {
+      transform: scale(1.05);
+      opacity: 0.95;
+      color: rgb(236, 72, 153);
+    }
+  }
+  
+  /* Breathing animation for customization price */
+  @keyframes price-breathe {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.08);
+      opacity: 0.85;
+    }
+  }
+  
+  .animate-price-add {
+    animation: price-add 1.5s ease-out, price-breathe 2s ease-in-out 1.5s infinite;
+  }
+  
+  /* Slide up animation */
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.8s ease-out;
+  }
+  
+  /* Float animation for decorative elements */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-20px) rotate(5deg);
+    }
+    66% {
+      transform: translateY(-10px) rotate(-5deg);
+    }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  /* Gradient shift for text */
+  .animate-gradient-shift {
+    background-size: 200% 200%;
+    animation: gradient-shift 3s ease infinite;
+  }
+  
+  /* Pulse slow animation */
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(1.02);
+    }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  
+  /* Fireworks animation */
+  .animate-firework-explode {
+    animation: firework-explode 1.2s ease-out forwards;
+  }
+  
+  @keyframes firework-explode {
+    0% {
+      transform: translate(0, 0) scale(1);
+      opacity: 1;
+    }
+    30% {
+      opacity: 1;
+      transform: translate(calc(var(--end-x, 0px) * 0.3), calc(var(--end-y, 0px) * 0.3)) scale(1.2);
+    }
+    100% {
+      transform: translate(var(--end-x, 0px), var(--end-y, 0px)) scale(0);
+      opacity: 0;
+    }
+  }
+  
+  /* Fluid gradient animation for login button */
+  @keyframes fluid-gradient {
+    0% {
+      background-position: 0% 50%;
+    }
+    25% {
+      background-position: 100% 50%;
+    }
+    50% {
+      background-position: 100% 100%;
+    }
+    75% {
+      background-position: 0% 100%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+  
+  .animate-fluid-gradient {
+    animation: fluid-gradient 4s ease infinite;
+  }
+  
+  /* PR Link New Animation - Breathing Glow Effect */
+  .pr-link-new {
+    position: relative;
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulseGlow {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.3),
+                  0 0 20px rgba(16, 185, 129, 0.2),
+                  0 0 30px rgba(5, 150, 105, 0.1);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.5),
+                  0 0 40px rgba(16, 185, 129, 0.4),
+                  0 0 60px rgba(5, 150, 105, 0.3);
+      transform: scale(1.02);
+    }
+  }
+  
+  /* Payment Popup Animations */
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  .animate-slide-in {
+    animation: slide-in 0.4s ease-out;
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  
+  /* Order Processing Animations */
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 20px rgba(168, 85, 247, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(168, 85, 247, 0);
+    }
+  }
+  
+  .animate-pulse-ring {
+    animation: pulse-ring 2s ease-out infinite;
+  }
+  
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  .animate-gradient-shift {
+    animation: gradient-shift 3s ease infinite;
+    background-size: 200% 200%;
+  }
+  
+  /* Slide up animation for story page */
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.8s ease-out;
+  }
+  
+  /* Float animation for decorative elements */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-20px) rotate(5deg);
+    }
+    66% {
+      transform: translateY(-10px) rotate(-5deg);
+    }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Get Stars tooltip - sunshine theme */
+  @keyframes stars-tooltip-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 8px) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+  }
+  .animate-stars-tooltip-in {
+    animation: stars-tooltip-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes stars-shine {
+    0%, 100% {
+      opacity: 0.3;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  .animate-stars-shine {
+    animation: stars-shine 3s ease-in-out infinite;
+  }
+  @keyframes stars-pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+  .animate-stars-pulse {
+    animation: stars-pulse 2s ease-in-out infinite;
+  }
+
+  /* Ticket stack - pop in when adding */
+  @keyframes ticket-stack-in {
+    0% {
+      opacity: 0;
+      transform: translateY(12px) scale(0.5) rotate(-15deg);
+    }
+    60% {
+      transform: translateY(-4px) scale(1.08) rotate(2deg);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+  }
+  .animate-ticket-stack-in {
+    animation: ticket-stack-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: white;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
