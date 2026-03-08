@@ -831,6 +831,7 @@ export async function sendCustomOrderConfirmationEmail(params: {
   const ordersUrl = `${baseUrl}/member/custom-orders`;
   const html = buildCustomOrderConfirmationEmailHtml({
     ...params,
+    hatsSummary: params.hatsSummary ?? '',
     ordersUrl,
   });
   const { error } = await resend.emails.send({

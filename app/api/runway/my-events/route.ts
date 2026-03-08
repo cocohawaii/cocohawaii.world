@@ -66,7 +66,8 @@ export async function GET() {
           .in('email', uniqueEmails)
       : { data: [] as { id: string; runway_event_id: string; quantity: number; total_paid: number }[] };
     const seen = new Set<string>();
-    [...(byMemberData || []), ...(byEmailData || [])].forEach((t: { id: string }) => {
+    type TicketRow = { id: string; runway_event_id: string; quantity: number; total_paid: number };
+    [...(byMemberData || []), ...(byEmailData || [])].forEach((t: TicketRow) => {
       if (!seen.has(t.id)) {
         seen.add(t.id);
         ticketPurchases.push(t);
