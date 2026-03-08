@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // Track signup for analytics (non-blocking)
     try {
       const admin = createAdminClient();
-      admin.from('page_analytics_events').insert({ event_type: 'signup' }).then(() => {}).catch((e) => console.warn('Analytics signup tracking failed:', e));
+      Promise.resolve(admin.from('page_analytics_events').insert({ event_type: 'signup' })).catch(() => {});
     } catch (_) { /* env vars missing, skip */ }
 
     if (data.session) {

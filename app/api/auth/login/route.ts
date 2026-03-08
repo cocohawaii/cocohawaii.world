@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     // Track login for analytics (non-blocking)
     try {
       const admin = createAdminClient();
-      admin.from('page_analytics_events').insert({ event_type: 'login' }).then(() => {}).catch((e) => console.warn('Analytics login tracking failed:', e));
+      Promise.resolve(admin.from('page_analytics_events').insert({ event_type: 'login' })).catch(() => {});
     } catch (_) { /* env vars missing, skip */ }
 
     return jsonResponse;
