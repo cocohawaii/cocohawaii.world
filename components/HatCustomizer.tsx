@@ -2,11 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Script from 'next/script';
+import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import WixImage from './WixImage';
 import RainbowButton from './RainbowButton';
 import Link from 'next/link';
 import DatePicker from './DatePicker';
 import Fireworks from './Fireworks';
+
+declare global {
+  interface Window {
+    SumUpCard?: {
+      mount: (opts: { id: string; checkoutId: string; onResponse: (type: string, body: unknown) => void }) => void;
+    };
+  }
+}
 
 interface RawHat {
   _id: string;
@@ -177,6 +187,15 @@ export default function HatCustomizer() {
   const [shippingPrice, setShippingPrice] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  // SumUp payment (Visa/Mastercard)
+  const [sumupCheckoutId, setSumupCheckoutId] = useState<string | null>(null);
+  const [showSumupWidget, setShowSumupWidget] = useState(false);
+  const [sumupScriptReady, setSumupScriptReady] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paypalProcessing, setPaypalProcessing] = useState(false);
+  const sumupWidgetMountedRef = useRef(false);
 
   // Check if user is logged in when checkout starts
   useEffect(() => {
@@ -211,6 +230,100 @@ export default function HatCustomizer() {
       }
     };
   }, [showFinalizeSuccessPopup, router]);
+
+  // Create SumUp checkout when user selects Card and reaches payment step
+  useEffect(() => {
+    if (checkoutStep !== 'payment' || paymentMethod !== 'Visa/Mastercard') return;
+    if (!checkoutName || !checkoutEmail || !checkoutMobile || !shippingAddress || !shippingOption) return;
+    if (sumupCheckoutId || checkoutLoading) return;
+    setCheckoutLoading(true);
+    setPaymentError('');
+    const grandTotal = calculateGrandTotal();
+    const hats = buildHatsPayload();
+    fetch('/api/custom/orders/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hats,
+        clientNotes: clientNotes || undefined,
+        name: checkoutName,
+        email: checkoutEmail,
+        mobile: checkoutMobile,
+        address: shippingAddress,
+        shippingPrice,
+        shippingType: shippingOption,
+        finalTotalPrice: grandTotal,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.checkoutId) {
+          setSumupCheckoutId(data.checkoutId);
+          setShowSumupWidget(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('custom_payment_checkout_id', data.checkoutId);
+          }
+        } else {
+          setPaymentError(data.error || 'Failed to set up payment. Please try again.');
+        }
+      })
+      .catch((err) => {
+        setPaymentError(err?.message || 'Failed to set up payment. Please try again.');
+      })
+      .finally(() => setCheckoutLoading(false));
+  }, [checkoutStep, paymentMethod, checkoutName, checkoutEmail, checkoutMobile, shippingAddress, shippingOption, shippingPrice, sumupCheckoutId, checkoutLoading, clientNotes]);
+
+  const startPollingCustom = (checkoutId: string) => {
+    setPaymentProcessing(true);
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/custom/orders/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          setPaymentProcessing(false);
+          setOrderId(data.groupOrderId || null);
+          setFinalizeSuccessFireworks(true);
+          setShowFinalizeSuccessPopup(true);
+          setCheckoutStep(null);
+        } else if (data.status === 'failed' || data.status === 'expired') {
+          setPaymentProcessing(false);
+          setPaymentError('Payment failed or expired. Please try again.');
+        } else if (data.success === false && data.error) {
+          setPaymentProcessing(false);
+          setPaymentError(data.error || 'Could not verify payment. Please try again.');
+        } else {
+          setTimeout(poll, 2000);
+        }
+      } catch {
+        setTimeout(poll, 2000);
+      }
+    };
+    poll();
+  };
+
+  // Mount SumUp card widget when checkout is ready and script loaded
+  useEffect(() => {
+    if (!showSumupWidget || !sumupCheckoutId || sumupWidgetMountedRef.current || !sumupScriptReady) return;
+    const SumUpCard = (window as unknown as { SumUpCard?: typeof window.SumUpCard }).SumUpCard;
+    if (!SumUpCard) return;
+    sumupWidgetMountedRef.current = true;
+    SumUpCard.mount({
+      id: 'sumup-card-custom',
+      checkoutId: sumupCheckoutId,
+      onResponse: (type: string, body: unknown) => {
+        const t = (type || '').toLowerCase();
+        if (t === 'success' || t === 'sent' || t === 'auth-screen' || t === 'auth_screen') {
+          setShowSumupWidget(false);
+          startPollingCustom(sumupCheckoutId);
+        } else if (t === 'error' || t === 'invalid') {
+          setPaymentError((body as { message?: string })?.message || 'Payment could not be completed. Please try again.');
+        } else {
+          setShowSumupWidget(false);
+          startPollingCustom(sumupCheckoutId);
+        }
+      },
+    });
+  }, [showSumupWidget, sumupCheckoutId, sumupScriptReady]);
   
   // Smooth scroll helper
   const scrollToElement = (id: string) => {
@@ -219,6 +332,40 @@ export default function HatCustomizer() {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Build hats payload for API (create-checkout or saveCustomizedOrder)
+  const buildHatsPayload = () =>
+    savedHats.map((h) => {
+      const e = embellishmentsByContainer[h.containerId] || {};
+      const originalHat = hatColors.find((rc) => rc._id === h._id);
+      const hatColor = originalHat?.hatColor || [];
+      const hatColorHex = originalHat?.hatColorHex || (Array.isArray(hatColor) && hatColor.length > 0 ? hatColor[0] : '');
+      const hatArtPrice = e.art && e.art !== '' ? artCurrentPrice : 0;
+      const stonesBaseName = e.preciousStones ? String(e.preciousStones).trim().split(/\s+/)[0]?.toLowerCase() || '' : '';
+      const stonesPrice = stonesBaseName
+        ? (preciousStonesOptions.find((s) => String(s.accessoryName || '').trim().toLowerCase().split(/\s+/)[0] === stonesBaseName)?.accessoryPrice ?? 0)
+        : 0;
+      const jewelryBaseName = e.jewelry ? String(e.jewelry).trim().split(/\s+/)[0]?.toLowerCase() || '' : '';
+      const jewelryPrice = jewelryBaseName
+        ? (jewelryOptions.find((j) => String(j.accessoryName || '').trim().toLowerCase().split(/\s+/)[0] === jewelryBaseName)?.accessoryPrice ?? 0)
+        : 0;
+      const fabricBaseName = e.fabric ? String(e.fabric).trim().toLowerCase() : '';
+      const fabricPrice = fabricBaseName
+        ? (fabricOptions.find((f) => String(f.accessoryName || '').trim().toLowerCase() === fabricBaseName)?.accessoryPrice ?? 0)
+        : 0;
+      return {
+        ...h,
+        hatColor: Array.isArray(hatColor) ? hatColor : hatColorHex ? [hatColorHex] : [],
+        hatColorHex,
+        embellishments: {
+          ...e,
+          artPrice: hatArtPrice,
+          preciousStonesPrice: stonesPrice,
+          jewelryPrice,
+          fabricPrice,
+        },
+      };
+    });
 
   // Calculate grand total (order + shipping)
   const calculateGrandTotal = () => {
@@ -237,9 +384,10 @@ export default function HatCustomizer() {
   };
 
   // Handle final order submission (after payment)
-  const handleFinalizeOrder = async () => {
+  const handleFinalizeOrder = async (onError?: (msg: string) => void) => {
     if (!checkoutName || !checkoutEmail || !checkoutMobile || !shippingAddress || !shippingOption || !paymentMethod) {
-      alert('Please complete all checkout steps.');
+      const msg = 'Please complete all checkout steps.';
+      onError ? onError(msg) : alert(msg);
       return;
     }
 
@@ -251,43 +399,7 @@ export default function HatCustomizer() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'saveCustomizedOrder',
-          hats: savedHats.map(h => {
-            const e = embellishmentsByContainer[h.containerId] || {};
-            const originalHat = hatColors.find(rc => rc._id === h._id);
-            const hatColor = originalHat?.hatColor || [];
-            const hatColorHex = originalHat?.hatColorHex || (Array.isArray(hatColor) && hatColor.length > 0 ? hatColor[0] : '');
-            // Calculate prices for each hat
-            const hatArtPrice = (e.art && e.art !== '') ? artCurrentPrice : 0;
-            
-            // Match by first word of selection AND first word of option
-            const stonesBaseName = e.preciousStones ? String(e.preciousStones).trim().split(/\s+/)[0]?.toLowerCase() || '' : '';
-            const stonesPrice = stonesBaseName
-              ? (preciousStonesOptions.find(s => String(s.accessoryName || '').trim().toLowerCase().split(/\s+/)[0] === stonesBaseName)?.accessoryPrice ?? 0)
-              : 0;
-            
-            const jewelryBaseName = e.jewelry ? String(e.jewelry).trim().split(/\s+/)[0]?.toLowerCase() || '' : '';
-            const jewelryPrice = jewelryBaseName
-              ? (jewelryOptions.find(j => String(j.accessoryName || '').trim().toLowerCase().split(/\s+/)[0] === jewelryBaseName)?.accessoryPrice ?? 0)
-              : 0;
-            
-            const fabricBaseName = e.fabric ? String(e.fabric).trim().toLowerCase() : '';
-            const fabricPrice = fabricBaseName
-              ? (fabricOptions.find(f => String(f.accessoryName || '').trim().toLowerCase() === fabricBaseName)?.accessoryPrice ?? 0)
-              : 0;
-            
-            return {
-              ...h,
-              hatColor: Array.isArray(hatColor) ? hatColor : (hatColorHex ? [hatColorHex] : []),
-              hatColorHex: hatColorHex,
-              embellishments: {
-                ...e,
-                artPrice: hatArtPrice,
-                preciousStonesPrice: stonesPrice,
-                jewelryPrice: jewelryPrice,
-                fabricPrice: fabricPrice,
-              },
-            };
-          }),
+          hats: buildHatsPayload(),
           clientNotes,
           memberEmail: checkoutEmail,
           // Checkout info
@@ -311,11 +423,13 @@ export default function HatCustomizer() {
         setCheckoutStep(null); // Close checkout
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Failed to save order. Please try again.');
+        const msg = errorData.error || 'Failed to save order. Please try again.';
+        onError ? onError(msg) : alert(msg);
       }
     } catch (error) {
       console.error('Error finalizing order:', error);
-      alert('Failed to save order. Please try again.');
+      const msg = 'Failed to save order. Please try again.';
+      onError ? onError(msg) : alert(msg);
     }
   };
 
@@ -919,6 +1033,13 @@ export default function HatCustomizer() {
     <div className="min-h-screen bg-white py-12 relative">
       {/* Fireworks effect when art price is added */}
       <Fireworks trigger={showArtPriceAnimation} duration={2000} />
+      {showSumupWidget && (
+        <Script
+          src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"
+          strategy="afterInteractive"
+          onLoad={() => setSumupScriptReady(true)}
+        />
+      )}
       
       {/* Add New Hat Modal */}
       {showAddHatModal && (
@@ -3803,27 +3924,95 @@ export default function HatCustomizer() {
                           {paymentMethod && (
                             <div className="pt-4">
                               {paymentMethod === 'PayPal' ? (
-                                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 text-center">
-                                  <p className="text-gray-700 mb-2">PayPal integration coming soon</p>
-                                  <RainbowButton
-                                    onClick={async () => {
-                                      await handleFinalizeOrder();
-                                    }}
-                                    className="w-full text-lg py-4"
-                                  >
-                                    Complete Order (Test Mode)
-                                  </RainbowButton>
+                                <div className="space-y-4">
+                                  {paymentError && (
+                                    <div className="p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 font-semibold">
+                                      {paymentError}
+                                    </div>
+                                  )}
+                                  {paypalProcessing ? (
+                                    <div className="p-6 bg-purple-50 border-2 border-purple-500 rounded-xl text-center">
+                                      <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                                      <p className="text-purple-800 font-semibold">Completing your order...</p>
+                                    </div>
+                                  ) : (
+                                    <PayPalScriptProvider
+                                      options={{
+                                        clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || 'test',
+                                        currency: 'EUR',
+                                      }}
+                                    >
+                                      <PayPalButtons
+                                        createOrder={(_data, actions) => {
+                                          const total = calculateGrandTotal();
+                                          return actions.order.create({
+                                            intent: 'CAPTURE',
+                                            purchase_units: [
+                                              {
+                                                amount: {
+                                                  value: total.toFixed(2),
+                                                  currency_code: 'EUR',
+                                                },
+                                              },
+                                            ],
+                                          });
+                                        }}
+                                        onApprove={async (_data, actions) => {
+                                          if (!actions.order) return;
+                                          setPaypalProcessing(true);
+                                          setPaymentError('');
+                                          try {
+                                            await actions.order.capture();
+                                            await handleFinalizeOrder((msg) => setPaymentError(msg));
+                                          } catch (err) {
+                                            console.error('PayPal capture error:', err);
+                                            setPaymentError('Payment could not be completed. Please try again.');
+                                          } finally {
+                                            setPaypalProcessing(false);
+                                          }
+                                        }}
+                                        onError={(err) => {
+                                          console.error('PayPal error:', err);
+                                          setPaymentError(err?.message || 'PayPal payment failed. Please try again.');
+                                        }}
+                                      />
+                                    </PayPalScriptProvider>
+                                  )}
                                 </div>
-                              ) : (
-                                <RainbowButton
-                                  onClick={async () => {
-                                    await handleFinalizeOrder();
-                                  }}
-                                  className="w-full text-lg py-4"
-                                >
-                                  Complete Order ✓
-                                </RainbowButton>
-                              )}
+                              ) : paymentMethod === 'Visa/Mastercard' ? (
+                                <>
+                                  {paymentError && (
+                                    <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 font-semibold">
+                                      {paymentError}
+                                    </div>
+                                  )}
+                                  {paymentProcessing && (
+                                    <div className="mb-4 p-6 bg-purple-50 border-2 border-purple-500 rounded-xl text-center">
+                                      <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                                      <p className="text-purple-800 font-semibold">Checking payment status...</p>
+                                      <p className="text-purple-600 text-sm mt-1">Please wait a moment.</p>
+                                    </div>
+                                  )}
+                                  {!paymentProcessing && checkoutLoading && (
+                                    <div className="mb-4 p-6 bg-purple-50 border-2 border-purple-200 rounded-xl text-center">
+                                      <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                                      <p className="text-purple-800 font-semibold">Setting up secure payment...</p>
+                                    </div>
+                                  )}
+                                  {!paymentProcessing && !checkoutLoading && sumupCheckoutId && showSumupWidget && (
+                                    <div className="mb-4">
+                                      <p className="text-sm font-semibold text-gray-700 mb-2">Pay with card (SumUp)</p>
+                                      <div id="sumup-card-custom" className="min-h-[200px]" />
+                                      {!sumupScriptReady && (
+                                        <div className="flex gap-3 py-4 text-gray-600">
+                                          <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+                                          <span>Loading payment form...</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              ) : null}
                             </div>
                           )}
                         </div>
@@ -3837,6 +4026,11 @@ export default function HatCustomizer() {
                               if (checkoutStep === 'shipping') {
                                 setCheckoutStep('signup');
                               } else if (checkoutStep === 'payment') {
+                                setSumupCheckoutId(null);
+                                setShowSumupWidget(false);
+                                sumupWidgetMountedRef.current = false;
+                                setPaymentError('');
+                                setPaypalProcessing(false);
                                 setCheckoutStep('shipping');
                               }
                             }}

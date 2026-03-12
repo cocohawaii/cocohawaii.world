@@ -41,96 +41,84 @@ export default function ArtAuctionPage() {
         </div>
       </section>
 
-      {/* Live auction & How it works */}
+      {/* Bidding & Raffles - side by side */}
       <section className="relative py-20 md:py-28 bg-white overflow-hidden">
         <PaintDrips variant="featured" />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="text-6xl mb-6">🎨</div>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4">
-            {t('auction.biddingIsLive')}
-          </h2>
-          <p className="text-xl text-gray-600 mb-8">
-            {t('auction.bidWithStarBids')}
-          </p>
-          <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 rounded-xl p-8 mb-8">
-            <h3 className="text-2xl font-bold mb-4">{t('auction.howItWorks')}</h3>
-            <ul className="text-left space-y-3 text-gray-700 max-w-md mx-auto">
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">⭐</span>
-                <span>{t('auction.getStarBidsBefore')}<Link href="/star-bid-packs" className="text-purple-600 hover:underline font-semibold">Star Bids</Link>{t('auction.getStarBidsAfter')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">🔴</span>
-                <span>{t('auction.placeBidOneClick')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">💎</span>
-                <span>{t('auction.uniqueHandDesigned')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">🏆</span>
-                <span>{t('auction.highestBidderWins')}</span>
-              </li>
-            </ul>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/art-creation-bidding">
-              <RainbowButton variant="primary">
-                {t('auction.viewLiveAuctions')}
-              </RainbowButton>
-            </Link>
-            <Link href="/">
-              <RainbowButton variant="secondary">
-                {t('auction.backToHome')}
-              </RainbowButton>
-            </Link>
-          </div>
-        </div>
-      </section>
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+            {/* Bidding is Live card */}
+            <div className="text-center">
+              <div className="text-6xl mb-6">🎨</div>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4">
+                {t('auction.biddingIsLive')}
+              </h2>
+              <p className="text-xl text-gray-600 mb-8">
+                {t('auction.bidWithStarBids')}
+              </p>
+              <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 rounded-xl p-8 mb-8">
+                <h3 className="text-2xl font-bold mb-4">{t('auction.howItWorks')}</h3>
+                <ul className="text-left space-y-3 text-gray-700 max-w-md mx-auto">
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">⭐</span>
+                    <span>{t('auction.getStarBidsBefore')}<Link href="/star-bid-packs" className="text-purple-600 hover:underline font-semibold">Star Bids</Link>{t('auction.getStarBidsAfter')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">🔴</span>
+                    <span>{t('auction.placeBidOneClick')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">💎</span>
+                    <span>{t('auction.uniqueHandDesigned')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">🏆</span>
+                    <span>{t('auction.highestBidderWins')}</span>
+                  </li>
+                </ul>
+              </div>
+              <Link href="/art-creation-bidding">
+                <RainbowButton variant="primary" className="w-full sm:w-auto">
+                  {t('auction.viewLiveAuctions')}
+                </RainbowButton>
+              </Link>
+            </div>
 
-      {/* View Raffles section */}
-      <section className="relative py-20 md:py-28 bg-white overflow-hidden">
-        <PaintDrips variant="featured" />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="text-6xl mb-6">🎟️</div>
-          <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4">
-            {t('auction.viewRaffles')}
-          </h2>
-          <p className="text-xl text-gray-600 mb-8">
-            {t('auction.enterRaffles')}
-          </p>
-          <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 rounded-xl p-8 mb-8">
-            <h3 className="text-2xl font-bold mb-4">{t('auction.howItWorks')}</h3>
-            <ul className="text-left space-y-3 text-gray-700 max-w-md mx-auto">
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">⭐</span>
-                <span>{t('auction.getStarBidsRaffle')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">🎟️</span>
-                <span>{t('auction.useStarBidsRaffle')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">🎁</span>
-                <span>{t('auction.excitingPrizes')}</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-2xl mr-3">🍀</span>
-                <span>{t('auction.winnersDrawn')}</span>
-              </li>
-            </ul>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/raffles">
-              <RainbowButton variant="primary">
+            {/* View Raffles card */}
+            <div className="text-center">
+              <div className="text-6xl mb-6">🎟️</div>
+              <h2 className="text-4xl md:text-5xl font-serif font-bold mb-4">
                 {t('auction.viewRaffles')}
-              </RainbowButton>
-            </Link>
-            <Link href="/">
-              <RainbowButton variant="secondary">
-                {t('auction.backToHome')}
-              </RainbowButton>
-            </Link>
+              </h2>
+              <p className="text-xl text-gray-600 mb-8">
+                {t('auction.enterRaffles')}
+              </p>
+              <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 rounded-xl p-8 mb-8">
+                <h3 className="text-2xl font-bold mb-4">{t('auction.howItWorks')}</h3>
+                <ul className="text-left space-y-3 text-gray-700 max-w-md mx-auto">
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">⭐</span>
+                    <span>{t('auction.getStarBidsRaffle')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">🎟️</span>
+                    <span>{t('auction.useStarBidsRaffle')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">🎁</span>
+                    <span>{t('auction.excitingPrizes')}</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-2xl mr-3">🍀</span>
+                    <span>{t('auction.winnersDrawn')}</span>
+                  </li>
+                </ul>
+              </div>
+              <Link href="/raffles">
+                <RainbowButton variant="primary" className="w-full sm:w-auto">
+                  {t('auction.viewRaffles')}
+                </RainbowButton>
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Script from 'next/script';
 import { Hat } from '@/lib/wix-types';
+
+declare global {
+  interface Window {
+    SumUpCard?: {
+      mount: (opts: { id: string; checkoutId: string; onResponse: (type: string, body: unknown) => void }) => void;
+    };
+  }
+}
 
 interface PaymentPopupProps {
   isOpen: boolean;
@@ -37,10 +46,13 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
   const [country, setCountry] = useState('');
   const [shippingOption, setShippingOption] = useState<string>('');
   const [shippingPrice, setShippingPrice] = useState<number>(0);
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
+  const [sumupCheckoutId, setSumupCheckoutId] = useState<string | null>(null);
+  const [showSumupWidget, setShowSumupWidget] = useState(false);
+  const [sumupScriptReady, setSumupScriptReady] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const widgetMountedRef = useRef(false);
   
   const nameInputRef = useRef<HTMLInputElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -390,109 +402,132 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
     if (currentStep === 'shipping') {
       setCurrentStep('info');
     } else if (currentStep === 'payment') {
+      setSumupCheckoutId(null);
+      setShowSumupWidget(false);
+      widgetMountedRef.current = false;
+      setPaymentError('');
       setCurrentStep('shipping');
     }
   };
 
-  const handleSubmit = async () => {
-    if (!cardNumber || !cardName || !expiryDate || !cvv) {
-      alert('Please fill in all payment details.');
-      return;
-    }
-
-    // Calculate final price with VIP discount
-    const finalPrice = hat.discountedPrice && hat.discountedPrice !== 0
-      ? hat.discountedPrice
-      : hat.price;
-    const subtotal = finalPrice + shippingPrice;
-    const vipDiscount = applyVIPDiscount && currentTier ? subtotal * (currentTier.discount / 100) : 0;
-    const totalFinalCost = subtotal - vipDiscount;
-
-    try {
-      // Save order to 'hatOrders' CMS
-      console.log('💾 Creating order in hatOrders CMS...');
-      console.log('📦 Order data:', {
-        action: 'create',
-        hatorderName: name,
-        hatorderEmail: email,
-        hatorderMobile: phoneCode ? `${phoneCode} ${mobile}` : mobile,
-        hatOrderPrice: finalPrice,
-        hatOrderSubtitle: hat.hatSubtitle || '',
-        hatOrdertitle: hat.title || '',
-        shippingCost: shippingPrice,
-        totalFinalCost: totalFinalCost,
-        orderAddress: shippingAddress,
+  // Create SumUp checkout when user reaches payment step
+  useEffect(() => {
+    if (currentStep !== 'payment') return;
+    if (!name || !email || !mobile || !shippingAddress || !city || !postalCode || !country || !shippingOption) return;
+    if (sumupCheckoutId) return;
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    setPaymentError('');
+    const prReferralId = typeof window !== 'undefined' ? localStorage.getItem('prReferralId') : null;
+    fetch('/api/hats/orders/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hatId: hat._id,
+        name,
+        email,
+        mobile: phoneCode ? `${phoneCode} ${mobile}` : mobile,
+        shippingAddress,
         shippingCity: city,
         shippingPostalCode: postalCode,
         shippingCountry: country,
-        shippingOption: shippingOption,
-      });
-      
-      // Get PR referral ID from localStorage (set when user visits via PR link)
-      const prReferralId = typeof window !== 'undefined' ? localStorage.getItem('prReferralId') : null;
-      console.log('🔗 Sending order with PR Referral ID:', prReferralId || 'None');
-      
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'create',
-          hatorderName: name,
-          hatorderEmail: email,
-          hatorderMobile: phoneCode ? `${phoneCode} ${mobile}` : mobile,
-          hatorderCustomAsk: '', // Can be added later if needed
-          hatOrderPrice: finalPrice,
-          hatOrderSubtitle: hat.hatSubtitle || '',
-          hatOrdertitle: hat.title || '',
-          shippingCost: shippingPrice,
-          totalFinalCost: totalFinalCost,
-          orderAddress: shippingAddress,
-          shippingCity: city,
-          shippingPostalCode: postalCode,
-          shippingCountry: country,
-          shippingOption: shippingOption,
-          prReferralId: prReferralId || '', // Include PR referral ID if present
-        }),
-      });
+        shippingOption,
+        shippingPrice,
+        hatPrice: productPrice,
+        totalPrice,
+        hatTitle: hat.title || '',
+        hatSubtitle: hat.hatSubtitle || '',
+        prReferralId: prReferralId || undefined,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.checkoutId) {
+          setSumupCheckoutId(data.checkoutId);
+          setShowSumupWidget(true);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('hat_payment_checkout_id', data.checkoutId);
+          }
+        } else {
+          setPaymentError(data.error || 'Failed to set up payment. Please try again.');
+        }
+      })
+      .catch((err) => {
+        setPaymentError(err?.message || 'Failed to set up payment. Please try again.');
+      })
+      .finally(() => setCheckoutLoading(false));
+  }, [currentStep, name, email, mobile, phoneCode, shippingAddress, city, postalCode, country, shippingOption, shippingPrice, productPrice, totalPrice, hat._id, hat.title, hat.hatSubtitle, sumupCheckoutId, checkoutLoading]);
 
-      console.log('📥 API Response status:', response.status);
-      const data = await response.json();
-      console.log('📥 API Response data:', data);
-      
-      if (response.ok && data.success) {
-        console.log('✅ Order created successfully:', data.hatOrderID);
-        
-        // Call onComplete with order data
-        const orderData = {
-          name,
-          email,
-          mobile: phoneCode ? `${phoneCode} ${mobile}` : mobile,
-          shippingAddress,
-          city,
-          postalCode,
-          country,
-          shippingOption,
-          shippingPrice,
-          hat,
-          totalPrice: totalFinalCost,
-          orderId: data.hatOrderID || data.orderId,
-        };
-
-        onComplete(orderData);
-      } else {
-        console.error('❌ Failed to create order:', data);
-        console.error('❌ Response status:', response.status);
-        console.error('❌ Error details:', data.error, data.details);
-        alert(data.error || data.details || 'Failed to create order. Please try again.');
+  const startPolling = (checkoutId: string) => {
+    setPaymentProcessing(true);
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/hats/orders/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          setPaymentProcessing(false);
+          const orderData = {
+            name,
+            email,
+            mobile: phoneCode ? `${phoneCode} ${mobile}` : mobile,
+            shippingAddress,
+            city,
+            postalCode,
+            country,
+            shippingOption,
+            shippingPrice,
+            hat,
+            totalPrice,
+            orderId: data.orderId,
+            hatOrderID: data.orderId,
+          };
+          onComplete(orderData);
+          return;
+        }
+        if (data.status === 'failed' || data.status === 'expired') {
+          setPaymentProcessing(false);
+          setPaymentError('Payment failed or expired. Please try again.');
+          return;
+        }
+        if (data.success === false && data.error) {
+          setPaymentProcessing(false);
+          setPaymentError(data.error || 'Could not verify payment. Please try again.');
+          return;
+        }
+        setTimeout(poll, 2000);
+      } catch {
+        setTimeout(poll, 2000);
       }
-    } catch (error: any) {
-      console.error('❌ Error creating order:', error);
-      console.error('❌ Error stack:', error.stack);
-      alert(`An error occurred while creating your order: ${error.message || 'Unknown error'}. Please try again.`);
-    }
+    };
+    poll();
   };
+
+  // Mount SumUp card widget when checkout is ready and script loaded
+  useEffect(() => {
+    if (!showSumupWidget || !sumupCheckoutId || widgetMountedRef.current || !sumupScriptReady) return;
+    const SumUpCard = (window as unknown as { SumUpCard?: typeof window.SumUpCard }).SumUpCard;
+    if (!SumUpCard) return;
+    widgetMountedRef.current = true;
+    SumUpCard.mount({
+      id: 'sumup-card-hat',
+      checkoutId: sumupCheckoutId,
+      onResponse: (type: string, body: unknown) => {
+        const t = (type || '').toLowerCase();
+        if (t === 'success' || t === 'sent') {
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        } else if (t === 'auth-screen' || t === 'auth_screen') {
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        } else if (t === 'error' || t === 'invalid') {
+          setPaymentError((body as { message?: string })?.message || 'Payment could not be completed. Please try again.');
+        } else {
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        }
+      },
+    });
+  }, [showSumupWidget, sumupCheckoutId, sumupScriptReady]);
 
   // Don't render anything if not open
   if (!isOpen) {
@@ -501,6 +536,13 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
 
   return (
     <>
+      {showSumupWidget && (
+        <Script
+          src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"
+          strategy="afterInteractive"
+          onLoad={() => setSumupScriptReady(true)}
+        />
+      )}
       {/* Backdrop with blur */}
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998] animate-fade-in"
@@ -990,69 +1032,39 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Card Number *</label>
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim())}
-                    onFocus={() => setFocusedField('card')}
-                    onBlur={() => setFocusedField(null)}
-                    className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none transition-all duration-300 ${
-                      focusedField === 'card' 
-                        ? 'border-purple-500 ring-4 ring-purple-200 shadow-lg' 
-                        : 'border-gray-300 focus:border-purple-400'
-                    }`}
-                    placeholder="1234 5678 9012 3456"
-                    maxLength={19}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold mb-2 text-gray-700">Cardholder Name *</label>
-                  <input
-                    type="text"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-purple-400 transition-all"
-                    placeholder="John Doe"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-700">Expiry Date *</label>
-                    <input
-                      type="text"
-                      value={expiryDate}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/\D/g, '');
-                        if (value.length >= 2) {
-                          value = value.substring(0, 2) + '/' + value.substring(2, 4);
-                        }
-                        setExpiryDate(value);
-                      }}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-purple-400 transition-all"
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      required
-                    />
+                {paymentError && (
+                  <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-xl text-red-700 font-semibold">
+                    {paymentError}
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-700">CVV *</label>
-                    <input
-                      type="text"
-                      value={cvv}
-                      onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-purple-400 transition-all"
-                      placeholder="123"
-                      maxLength={3}
-                      required
-                    />
+                )}
+
+                {paymentProcessing && (
+                  <div className="mb-4 p-6 bg-purple-50 border-2 border-purple-500 rounded-xl text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                    <p className="text-purple-800 font-semibold">Checking payment status...</p>
+                    <p className="text-purple-600 text-sm mt-1">Please wait a moment.</p>
                   </div>
-                </div>
+                )}
+
+                {!paymentProcessing && checkoutLoading && (
+                  <div className="mb-4 p-6 bg-purple-50 border-2 border-purple-200 rounded-xl text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                    <p className="text-purple-800 font-semibold">Setting up secure payment...</p>
+                  </div>
+                )}
+
+                {!paymentProcessing && !checkoutLoading && sumupCheckoutId && showSumupWidget && (
+                  <div className="mb-4">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Pay with card (SumUp)</p>
+                    <div id="sumup-card-hat" className="min-h-[200px]" />
+                    {!sumupScriptReady && (
+                      <div className="flex gap-3 py-4 text-gray-600">
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+                        <span>Loading payment form...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1061,7 +1073,8 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
               {currentStep !== 'info' && (
                 <button
                   onClick={handleBackStep}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                  disabled={paymentProcessing}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   ← Back
                 </button>
@@ -1074,12 +1087,11 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
                   Continue →
                 </button>
               ) : (
-                <button
-                  onClick={handleSubmit}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all transform hover:scale-105 shadow-lg"
-                >
-                  Complete Order ✓
-                </button>
+                !paymentProcessing && !sumupCheckoutId && !checkoutLoading && (
+                  <div className="flex-1 text-sm text-gray-500 text-center py-2">
+                    Setting up payment...
+                  </div>
+                )
               )}
             </div>
           </div>

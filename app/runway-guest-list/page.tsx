@@ -2,9 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 import RainbowButton from '@/components/RainbowButton';
 import Fireworks from '@/components/Fireworks';
 import { useAuth } from '@/components/AuthProvider';
+
+declare global {
+  interface Window {
+    SumUpCard?: {
+      mount: (opts: { id: string; checkoutId: string; onResponse: (type: string, body: unknown) => void }) => void;
+    };
+  }
+}
 
 type RunwayEvent = {
   id: string;
@@ -68,6 +77,13 @@ export default function RunwayGuestListPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
+  const [sumupCheckoutId, setSumupCheckoutId] = useState<string | null>(null);
+  const [showSumupWidget, setShowSumupWidget] = useState(false);
+  const [sumupScriptReady, setSumupScriptReady] = useState(false);
+  const [paymentReturnChecking, setPaymentReturnChecking] = useState(false);
+  const [paymentTimeout, setPaymentTimeout] = useState(false);
+  const widgetMountedRef = useRef(false);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch('/api/runway/events?status=upcoming')
@@ -80,6 +96,53 @@ export default function RunwayGuestListPage() {
       })
       .catch(() => setEventsLoading(false));
   }, []);
+
+  // Handle return from SumUp redirect (e.g. after 3DS) – poll for payment status
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment_return') !== '1') return;
+    const idFromUrl = params.get('checkout_id') || params.get('checkoutId') || params.get('id');
+    const storedId = sessionStorage.getItem('runway_payment_checkout_id') || idFromUrl;
+    if (!storedId) return;
+    sessionStorage.removeItem('runway_payment_checkout_id');
+    window.history.replaceState({}, '', '/runway-guest-list');
+    setFlowPath('ticket');
+    setShowSumupWidget(false);
+    setSumupCheckoutId(null);
+    setPaymentReturnChecking(true);
+    startPolling(storedId);
+  }, []);
+
+  // Mount SumUp card widget when checkout is ready and script loaded
+  useEffect(() => {
+    if (!showSumupWidget || !sumupCheckoutId || widgetMountedRef.current || !sumupScriptReady) return;
+    const SumUpCard = (window as unknown as { SumUpCard?: typeof window.SumUpCard }).SumUpCard;
+    if (!SumUpCard) return;
+    widgetMountedRef.current = true;
+    SumUpCard.mount({
+      id: 'sumup-card',
+      checkoutId: sumupCheckoutId,
+      onResponse: (type: string, body: unknown) => {
+        const t = (type || '').toLowerCase();
+        // "sent" / "success" = payment submitted; poll for PAID status
+        if (t === 'success' || t === 'sent') {
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        } else if (t === 'auth-screen' || t === 'auth_screen') {
+          // 3DS in progress – start polling; user may be redirected and return via return_url
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        } else if (t === 'error' || t === 'invalid') {
+          setError((body as { message?: string })?.message || 'Payment could not be completed. Please try again.');
+        } else {
+          // Fallback: any other response – show processing and poll (covers unknown types)
+          setShowSumupWidget(false);
+          startPolling(sumupCheckoutId);
+        }
+      },
+    });
+  }, [showSumupWidget, sumupCheckoutId, sumupScriptReady]);
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
   const ticketLimit = selectedEvent?.ticketLimit ?? 0;
@@ -129,7 +192,7 @@ export default function RunwayGuestListPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/runway/tickets/purchase', {
+      const res = await fetch('/api/runway/tickets/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -140,21 +203,18 @@ export default function RunwayGuestListPage() {
           email: formData.email,
           phone: formData.phone,
           member_id: member?.id ?? undefined,
-          payment_method: 'Card (SumUp)',
         }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setSuccess(true);
-        setShowFireworks(true);
-        setTimeout(() => setShowFireworks(false), 5000);
-        setFormData({ name: '', email: '', phone: '' });
-        setSelectedEventId(null);
-        setFlowPath(null);
-        setTicketQuantity(1);
-        setTimeout(() => router.push('/member/runway-events'), 5000);
+      if (res.ok && data.success && data.checkoutId) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('runway_payment_checkout_id', data.checkoutId);
+        }
+        setSumupCheckoutId(data.checkoutId);
+        setShowSumupWidget(true);
+        widgetMountedRef.current = false;
       } else {
-        setError(data.error || 'Failed to purchase tickets.');
+        setError(data.error || 'Failed to set up payment. Please try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error.');
@@ -163,10 +223,89 @@ export default function RunwayGuestListPage() {
     }
   };
 
+  const startPolling = (checkoutId: string) => {
+    setPaymentReturnChecking(true);
+    setPaymentTimeout(false);
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    pollTimeoutRef.current = setTimeout(() => {
+      pollTimeoutRef.current = null;
+      setPaymentTimeout(true);
+    }, 45000);
+    const poll = async (): Promise<void> => {
+      try {
+        const res = await fetch(`/api/runway/tickets/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+          setPaymentReturnChecking(false);
+          setPaymentTimeout(false);
+          setSuccess(true);
+          setShowFireworks(true);
+          setTimeout(() => setShowFireworks(false), 5000);
+          setFormData({ name: '', email: '', phone: '' });
+          setSelectedEventId(null);
+          setFlowPath(null);
+          setSumupCheckoutId(null);
+          setShowSumupWidget(false);
+          setTicketQuantity(1);
+          setTimeout(() => router.push('/member/runway-events'), 5000);
+          return;
+        }
+        if (data.status === 'failed' || data.status === 'expired') {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+          setPaymentReturnChecking(false);
+          setPaymentTimeout(false);
+          setError('Payment failed or expired. Please try again.');
+          setShowSumupWidget(false);
+          setSumupCheckoutId(null);
+          return;
+        }
+        if (data.success === false && data.error) {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
+          setPaymentReturnChecking(false);
+          setPaymentTimeout(false);
+          setError(data.error || 'Could not verify payment. Please try again.');
+          setShowSumupWidget(false);
+          setSumupCheckoutId(null);
+          return;
+        }
+        setTimeout(poll, 2000);
+      } catch {
+        setTimeout(poll, 2000);
+      }
+    };
+    poll();
+  };
+
+  const cancelPaymentChecking = () => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    setPaymentReturnChecking(false);
+    setPaymentTimeout(false);
+    setShowSumupWidget(false);
+    setSumupCheckoutId(null);
+    setError('');
+  };
+
   const resetPath = () => setFlowPath(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-50 to-orange-100 py-12 md:py-20 relative overflow-hidden">
+      {showSumupWidget && (
+        <Script
+          src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"
+          strategy="afterInteractive"
+          onLoad={() => setSumupScriptReady(true)}
+        />
+      )}
       <Fireworks trigger={showFireworks} duration={5000} />
       {/* Floating orbs */}
       <div className="absolute top-20 left-10 w-64 h-64 bg-purple-300/30 rounded-full blur-3xl animate-pulse" />
@@ -200,7 +339,38 @@ export default function RunwayGuestListPage() {
           </div>
         )}
 
-        {!success && (
+        {paymentReturnChecking && (
+          <div className="mb-8 p-8 bg-purple-50 border-2 border-purple-500 rounded-2xl text-center animate-scaleIn">
+            {paymentTimeout ? (
+              <>
+                <p className="text-purple-800 font-semibold mb-2">Payment is taking longer than expected.</p>
+                <p className="text-purple-600 text-sm mb-6">Check your email for confirmation, or try again below.</p>
+                <button
+                  type="button"
+                  onClick={cancelPaymentChecking}
+                  className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+                >
+                  Try again
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-4" />
+                <p className="text-purple-800 font-semibold">Checking payment status...</p>
+                <p className="text-purple-600 text-sm mt-1 mb-4">Please wait a moment.</p>
+                <button
+                  type="button"
+                  onClick={cancelPaymentChecking}
+                  className="text-sm text-purple-600 hover:text-purple-800 font-medium underline"
+                >
+                  Cancel and try again
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {!success && !paymentReturnChecking && (
           <div className="space-y-10">
             {/* STEP 1: Event Selection - Always first */}
             <section className="animate-fade-in">
@@ -342,7 +512,7 @@ export default function RunwayGuestListPage() {
                         >
                           <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🎟️</div>
                           <h3 className="text-2xl font-bold text-gray-900 mb-2">Buy Tickets</h3>
-                          <p className="text-gray-600">€{ticketPrice.toFixed(2)} per ticket · Pay with credit card</p>
+                          <p className="text-gray-600">€{ticketPrice.toFixed(2)} per ticket · Pay with SumUp</p>
                           <p className="mt-2 text-sm text-pink-600 font-medium">{ticketsAvailable} tickets available</p>
                           {(selectedEvent.itemsCount ?? 0) > 0 && (
                             <p className="mt-1 text-sm text-pink-500 font-medium">
@@ -359,7 +529,7 @@ export default function RunwayGuestListPage() {
                           </div>
                           <div className="text-5xl mb-4 opacity-60">🎟️</div>
                           <h3 className="text-2xl font-bold text-gray-600 mb-2">Buy Tickets</h3>
-                          <p className="text-gray-500">€{ticketPrice.toFixed(2)} per ticket · Pay with credit card</p>
+                          <p className="text-gray-500">€{ticketPrice.toFixed(2)} per ticket · Pay with SumUp</p>
                           <p className="mt-2 text-sm text-gray-500 font-medium">0 tickets available · Complete</p>
                           {(selectedEvent.itemsCount ?? 0) > 0 && (
                             <p className="mt-1 text-sm text-gray-500 font-medium">
@@ -442,7 +612,7 @@ export default function RunwayGuestListPage() {
                       />
                     </div>
 
-                    {flowPath === 'ticket' && (
+                    {flowPath === 'ticket' && !showSumupWidget && (
                       <div className="bg-gradient-to-br from-fuchsia-50 to-pink-50 rounded-2xl p-6 border-2 border-fuchsia-200 shadow-lg">
                         <label htmlFor="ticketQty" className="block text-xl font-bold text-gray-800 mb-4">Number of tickets</label>
                         <div className="flex flex-col sm:flex-row items-center gap-6">
@@ -477,22 +647,50 @@ export default function RunwayGuestListPage() {
                           </div>
                           <div className="text-center sm:text-left">
                             <p className="text-2xl font-bold text-gray-900">€{ticketTotal.toFixed(2)} total</p>
-                            <p className="text-base text-gray-600 mt-0.5">Pay with credit card</p>
+                            <p className="text-base text-gray-600 mt-0.5">Pay with credit card · SumUp</p>
                           </div>
                         </div>
                         <p className="text-base text-gray-600 mt-4 font-medium">{ticketsAvailable} tickets available</p>
                       </div>
                     )}
 
+                    {flowPath === 'ticket' && showSumupWidget && (
+                      <div className="bg-white rounded-2xl p-6 border-2 border-purple-200 shadow-lg">
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-lg font-bold text-gray-800">Complete payment with SumUp</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSumupWidget(false);
+                              setSumupCheckoutId(null);
+                              widgetMountedRef.current = false;
+                            }}
+                            className="text-sm text-purple-600 hover:text-purple-800 font-medium underline"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <div id="sumup-card" className="min-h-[200px]" />
+                        {!sumupScriptReady && (
+                          <div className="flex items-center gap-3 py-4 text-gray-600">
+                            <div className="animate-spin rounded-full h-6 w-6 border-2 border-purple-500 border-t-transparent" />
+                            <span>Loading payment form...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="pt-4">
-                      <RainbowButton
-                        type="submit"
-                        variant="primary"
-                        disabled={loading}
-                        className="w-full py-5 text-xl font-bold rounded-xl"
-                      >
-                        {loading ? 'Processing...' : flowPath === 'guest' ? 'Join the Runway' : `Buy Tickets — €${ticketTotal.toFixed(2)}`}
-                      </RainbowButton>
+                      {flowPath === 'ticket' && showSumupWidget ? null : (
+                        <RainbowButton
+                          type="submit"
+                          variant="primary"
+                          disabled={loading}
+                          className="w-full py-5 text-xl font-bold rounded-xl"
+                        >
+                          {loading ? 'Processing...' : flowPath === 'guest' ? 'Join the Runway' : `Buy Tickets — €${ticketTotal.toFixed(2)}`}
+                        </RainbowButton>
+                      )}
                     </div>
                   </form>
                 </div>

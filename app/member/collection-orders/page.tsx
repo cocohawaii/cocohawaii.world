@@ -28,15 +28,21 @@ function CollectionOrdersContent() {
   const [loading, setLoading] = useState(true);
   const [showOrderProcessing, setShowOrderProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [paymentReturnChecking, setPaymentReturnChecking] = useState(false);
+  const [paymentReturnError, setPaymentReturnError] = useState('');
+  const [paymentReturnResolved, setPaymentReturnResolved] = useState(false);
+  const [paymentReturnSuccess, setPaymentReturnSuccess] = useState(false);
   const searchParams = useSearchParams();
   const orderComplete = searchParams.get('orderComplete') === 'true';
   const orderId = searchParams.get('orderId');
+  const paymentReturn = searchParams.get('payment_return') === '1';
 
   useEffect(() => {
+    if (paymentReturn) return;
     if (!isLoading && !member) {
       window.location.href = '/login';
     }
-  }, [member, isLoading]);
+  }, [member, isLoading, paymentReturn]);
 
   const fetchOrders = async () => {
     if (!member?.memberEmail) return;
@@ -61,29 +67,69 @@ function CollectionOrdersContent() {
   useEffect(() => {
     if (orderComplete) {
       setShowOrderProcessing(true);
-      // Animate through steps: 0 = Confirmed, 1 = Processing (stop at step 2)
-      const stepTimings = [0, 1500]; // Only go to step 1 (Processing)
+      const stepTimings = [0, 1500];
       stepTimings.forEach((delay, index) => {
         setTimeout(() => {
           setCurrentStep(index);
         }, delay);
       });
-      
-      // Hide processing animation after step 2 (Processing) and redirect
       setTimeout(() => {
         setShowOrderProcessing(false);
-        // Refresh orders list multiple times to ensure new order appears
         fetchOrders();
-        // Also refresh after a short delay to account for any CMS sync delay
-        setTimeout(() => {
-          console.log('🔄 Refreshing orders list again...');
-          fetchOrders();
-        }, 2000);
-        // Remove query params for clean URL
+        setTimeout(() => fetchOrders(), 2000);
         window.history.replaceState({}, '', '/member/collection-orders');
-      }, 3000); // Reduced from 6000 to 3000 since we only go to step 2
+      }, 3000);
     }
   }, [orderComplete, member?.memberEmail]);
+
+  // Handle return from SumUp 3DS redirect
+  useEffect(() => {
+    if (!paymentReturn || typeof window === 'undefined') return;
+    const idFromUrl = searchParams.get('checkout_id') || searchParams.get('checkoutId') || searchParams.get('id');
+    const storedId = sessionStorage.getItem('hat_payment_checkout_id') || idFromUrl;
+    if (!storedId) {
+      setPaymentReturnError('Could not find payment session. Please check your email for confirmation or contact support.');
+      return;
+    }
+    sessionStorage.removeItem('hat_payment_checkout_id');
+    setPaymentReturnChecking(true);
+    setPaymentReturnError('');
+
+    const timeout = setTimeout(() => {
+      setPaymentReturnChecking(false);
+      setPaymentReturnError('Payment is taking longer than expected. Check your email for confirmation or try again.');
+    }, 45000);
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/hats/orders/check-status?checkoutId=${encodeURIComponent(storedId)}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnSuccess(true);
+          return;
+        }
+        if (data.status === 'failed' || data.status === 'expired') {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnError('Payment failed or expired. Please try again.');
+          return;
+        }
+        if (data.success === false && data.error) {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnError(data.error || 'Could not verify payment.');
+          return;
+        }
+        setTimeout(poll, 2000);
+      } catch {
+        setTimeout(poll, 2000);
+      }
+    };
+    poll();
+    return () => clearTimeout(timeout);
+  }, [paymentReturn]);
 
   // Helper functions (moved outside map for reuse)
   const safeString = (value: any): string => {
@@ -110,6 +156,54 @@ function CollectionOrdersContent() {
     }
     return 0;
   };
+
+  if (paymentReturn && (paymentReturnChecking || paymentReturnError || paymentReturnSuccess)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white via-purple-50/30 to-blue-50">
+        <div className="max-w-md w-full mx-4 p-8 bg-white rounded-2xl shadow-xl border-2 border-purple-200 text-center">
+          {paymentReturnChecking ? (
+            <>
+              <div className="animate-spin rounded-full h-14 w-14 border-2 border-purple-500 border-t-transparent mx-auto mb-6" />
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Checking payment status...</h2>
+              <p className="text-gray-600">Please wait a moment.</p>
+            </>
+          ) : paymentReturnSuccess ? (
+            <>
+              <div className="text-6xl mb-6">🎉</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Payment successful!</h2>
+              <p className="text-gray-600 mb-6">Your order is confirmed. Check your email for details.</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/member/collection-orders"
+                  className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+                >
+                  View Orders
+                </Link>
+                <Link
+                  href="/collections"
+                  className="inline-block px-6 py-3 border-2 border-purple-600 text-purple-600 font-semibold rounded-xl hover:bg-purple-50 transition-colors"
+                >
+                  Continue Shopping
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-5xl mb-6">⚠️</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Payment issue</h2>
+              <p className="text-gray-600 mb-6">{paymentReturnError}</p>
+              <Link
+                href="/collections"
+                className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+              >
+                Back to Collections
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !member) {
     return (

@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
       .order('order_created_on', { ascending: false })
       .limit(1000);
 
-    const orders = (rows || []).map((o: any) => ({
+    // Filter to completed orders only (payment_status may not exist on older schema)
+    const completed = (rows || []).filter((o: { payment_status?: string }) => o.payment_status !== 'pending');
+
+    const orders = completed.map((o: any) => ({
       _id: o.wix_id,
       hatOrderID: o.order_id,
       hatorderEmail: o.customer_email,

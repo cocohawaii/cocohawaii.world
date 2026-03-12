@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import WixImage from '@/components/WixImage';
 import { useAuth } from '@/components/AuthProvider';
 
@@ -32,35 +33,142 @@ interface CustomHatOrder {
   shippingType: string;
 }
 
-export default function CustomHatOrders() {
+function CustomHatOrdersContent() {
   const { member, isLoading } = useAuth();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<CustomHatOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paymentReturnChecking, setPaymentReturnChecking] = useState(false);
+  const [paymentReturnError, setPaymentReturnError] = useState('');
+  const [paymentReturnSuccess, setPaymentReturnSuccess] = useState(false);
+  const paymentReturn = searchParams?.get('payment_return') === '1';
 
   useEffect(() => {
+    if (paymentReturn) return;
     if (!isLoading && !member) {
       window.location.href = '/login';
     }
-  }, [member, isLoading]);
+  }, [member, isLoading, paymentReturn]);
+
+  const fetchOrders = async () => {
+    if (!member?.memberEmail) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/custom-orders/get?email=${encodeURIComponent(member.memberEmail)}`);
+      const data = await res.json();
+      if (data.success) setOrders(data.orders || []);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!member?.memberEmail) return;
-    setLoading(true);
-    fetch(`/api/custom-orders/get?email=${encodeURIComponent(member.memberEmail)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setOrders(data.orders || []);
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchOrders();
   }, [member?.memberEmail]);
+
+  // Handle return from SumUp 3DS redirect
+  useEffect(() => {
+    if (!paymentReturn || typeof window === 'undefined') return;
+    const storedId = sessionStorage.getItem('custom_payment_checkout_id');
+    if (!storedId) {
+      setPaymentReturnError('Could not find payment session. Please check your email for confirmation or contact support.');
+      return;
+    }
+    sessionStorage.removeItem('custom_payment_checkout_id');
+    setPaymentReturnChecking(true);
+    setPaymentReturnError('');
+
+    const timeout = setTimeout(() => {
+      setPaymentReturnChecking(false);
+      setPaymentReturnError('Payment is taking longer than expected. Check your email for confirmation or try again.');
+    }, 45000);
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/custom/orders/check-status?checkoutId=${encodeURIComponent(storedId)}`);
+        const data = await res.json();
+        if (data.status === 'paid') {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnSuccess(true);
+          fetchOrders();
+          window.history.replaceState({}, '', '/member/custom-orders');
+          return;
+        }
+        if (data.status === 'failed' || data.status === 'expired') {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnError('Payment failed or expired. Please try again.');
+          return;
+        }
+        if (data.success === false && data.error) {
+          clearTimeout(timeout);
+          setPaymentReturnChecking(false);
+          setPaymentReturnError(data.error || 'Could not verify payment. Please try again.');
+          return;
+        }
+        setTimeout(poll, 2000);
+      } catch {
+        setTimeout(poll, 2000);
+      }
+    };
+    poll();
+    return () => clearTimeout(timeout);
+  }, [paymentReturn, member?.memberEmail]);
 
   if (isLoading || !member) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
+
+  if (paymentReturn && (paymentReturnChecking || paymentReturnError || paymentReturnSuccess)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white via-purple-50/30 to-blue-50">
+        <div className="max-w-md w-full mx-4 p-8 bg-white rounded-2xl shadow-xl border-2 border-purple-200 text-center">
+          {paymentReturnChecking ? (
+            <>
+              <div className="animate-spin rounded-full h-14 w-14 border-2 border-purple-500 border-t-transparent mx-auto mb-6" />
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Checking payment status...</h2>
+              <p className="text-gray-600">Please wait a moment.</p>
+            </>
+          ) : paymentReturnSuccess ? (
+            <>
+              <div className="text-6xl mb-6">🎉</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Payment successful!</h2>
+              <p className="text-gray-600 mb-6">Your custom order is confirmed. Check your email for details.</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/member/custom-orders"
+                  className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+                >
+                  View Orders
+                </Link>
+                <Link
+                  href="/create-your-hat"
+                  className="inline-block px-6 py-3 border-2 border-purple-600 text-purple-600 font-semibold rounded-xl hover:bg-purple-50 transition-colors"
+                >
+                  Create Another Hat
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-5xl mb-6">⚠️</div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Payment issue</h2>
+              <p className="text-gray-600 mb-6">{paymentReturnError}</p>
+              <Link
+                href="/create-your-hat"
+                className="inline-block px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+              >
+                Back to Customizer
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -421,5 +529,17 @@ export default function CustomHatOrders() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CustomHatOrders() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    }>
+      <CustomHatOrdersContent />
+    </Suspense>
   );
 }

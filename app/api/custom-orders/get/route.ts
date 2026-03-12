@@ -81,11 +81,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Group by group_order_id
+    // Group by group_order_id, exclude pending (unpaid) SumUp orders
     const ordersByGroup: Record<string, any[]> = {};
     for (const row of items) {
       const r = row as Record<string, unknown>;
       const groupId = String(r.group_order_id || 'unknown');
+      const paymentStatus = String(r.payment_status || '');
+      const orderPaid = (r.order_paid as boolean) === true;
+      // Exclude groups that are pending SumUp payment (not yet paid)
+      if (paymentStatus === 'pending' && !orderPaid) continue;
       if (!ordersByGroup[groupId]) ordersByGroup[groupId] = [];
       ordersByGroup[groupId].push(r);
     }

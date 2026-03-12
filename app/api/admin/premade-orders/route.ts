@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
         customAsk: String(o.custom_ask || ''),
         orderCreatedOn: o.order_created_on || '',
         prReferralId: String(o.pr_referral_id || ''),
+        paymentStatus: String(o.payment_status || 'completed'),
       };
     });
 
