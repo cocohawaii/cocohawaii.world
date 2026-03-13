@@ -502,6 +502,15 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
     poll();
   };
 
+  // Timeout if SumUp script never loads (e.g. blocked by browser/ad blocker)
+  useEffect(() => {
+    if (!showSumupWidget || !sumupCheckoutId || sumupScriptReady) return;
+    const t = setTimeout(() => {
+      if (!sumupScriptReady) setPaymentError('Payment form failed to load. Please refresh or try a different browser.');
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [showSumupWidget, sumupCheckoutId, sumupScriptReady]);
+
   // Mount SumUp card widget when checkout is ready and script loaded
   useEffect(() => {
     if (!showSumupWidget || !sumupCheckoutId || widgetMountedRef.current || !sumupScriptReady) return;
@@ -541,6 +550,7 @@ export default function PaymentPopup({ isOpen, onClose, hat, onComplete }: Payme
           src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"
           strategy="afterInteractive"
           onLoad={() => setSumupScriptReady(true)}
+          onError={() => setPaymentError('Payment form failed to load. Please refresh the page or try a different browser.')}
         />
       )}
       {/* Backdrop with blur */}

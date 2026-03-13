@@ -139,6 +139,7 @@ export default function Layout({ children }: LayoutProps) {
                               playsInline
                               autoPlay
                               preload="metadata"
+                              crossOrigin="anonymous"
                               onError={() => setMegaMenuVideoError(true)}
                             />
                           ) : (

@@ -304,6 +304,7 @@ export default function RunwayGuestListPage() {
           src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"
           strategy="afterInteractive"
           onLoad={() => setSumupScriptReady(true)}
+          onError={() => setError('Payment form failed to load. Please refresh the page or try a different browser.')}
         />
       )}
       <Fireworks trigger={showFireworks} duration={5000} />
