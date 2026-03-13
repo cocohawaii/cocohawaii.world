@@ -98,7 +98,7 @@ function CollectionOrdersContent() {
     const timeout = setTimeout(() => {
       setPaymentReturnChecking(false);
       setPaymentReturnError('Payment is taking longer than expected. Check your email for confirmation or try again.');
-    }, 45000);
+    }, 90000);
 
     const poll = async () => {
       try {

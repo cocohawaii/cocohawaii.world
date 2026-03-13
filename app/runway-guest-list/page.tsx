@@ -233,7 +233,7 @@ export default function RunwayGuestListPage() {
     pollTimeoutRef.current = setTimeout(() => {
       pollTimeoutRef.current = null;
       setPaymentTimeout(true);
-    }, 45000);
+    }, 90000);
     const poll = async (): Promise<void> => {
       try {
         const res = await fetch(`/api/runway/tickets/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
