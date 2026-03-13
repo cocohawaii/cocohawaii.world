@@ -124,6 +124,9 @@ export default function RunwayGuestListPage() {
       id: 'sumup-card',
       checkoutId: sumupCheckoutId,
       onResponse: (type: string, body: unknown) => {
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1') {
+          console.log('[SumUp onResponse]', { type, body });
+        }
         const t = (type || '').toLowerCase();
         // "sent" / "success" = payment submitted; poll for PAID status
         if (t === 'success' || t === 'sent') {
@@ -236,7 +239,8 @@ export default function RunwayGuestListPage() {
     }, 90000);
     const poll = async (): Promise<void> => {
       try {
-        const res = await fetch(`/api/runway/tickets/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
+        const debug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
+        const res = await fetch(`/api/runway/tickets/check-status?checkoutId=${encodeURIComponent(checkoutId)}${debug ? '&debug=1' : ''}`);
         const data = await res.json();
         if (data.status === 'paid') {
           if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);

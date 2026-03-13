@@ -31,10 +31,14 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await res.json();
+    const debug = searchParams.get('debug') === '1';
+    if (debug) {
+      console.log('[SumUp check-status]', { checkoutId, status: data.status, full: JSON.stringify(data).slice(0, 500) });
+    }
 
     if (!res.ok) {
       return NextResponse.json(
-        { success: false, error: data.message || 'Checkout not found' },
+        { success: false, error: data.message || 'Checkout not found', ...(debug && { _debug: data }) },
         { status: res.status }
       );
     }
@@ -79,6 +83,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: status === 'FAILED' ? 'failed' : status === 'EXPIRED' ? 'expired' : 'pending',
+      ...(debug && { _debug: { sumupStatus: status, raw: data } }),
     });
   } catch (error: unknown) {
     console.error('Check status error:', error);

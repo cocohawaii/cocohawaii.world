@@ -193,9 +193,11 @@ export default function HatCustomizer() {
   const [sumupScriptReady, setSumupScriptReady] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentTimeout, setPaymentTimeout] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [paypalProcessing, setPaypalProcessing] = useState(false);
   const sumupWidgetMountedRef = useRef(false);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check if user is logged in when checkout starts
   useEffect(() => {
@@ -275,21 +277,39 @@ export default function HatCustomizer() {
 
   const startPollingCustom = (checkoutId: string) => {
     setPaymentProcessing(true);
+    setPaymentTimeout(false);
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    pollTimeoutRef.current = setTimeout(() => {
+      pollTimeoutRef.current = null;
+      setPaymentTimeout(true);
+    }, 90000);
     const poll = async () => {
       try {
         const res = await fetch(`/api/custom/orders/check-status?checkoutId=${encodeURIComponent(checkoutId)}`);
         const data = await res.json();
         if (data.status === 'paid') {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
           setPaymentProcessing(false);
+          setPaymentTimeout(false);
           setOrderId(data.groupOrderId || null);
           setFinalizeSuccessFireworks(true);
           setShowFinalizeSuccessPopup(true);
           setCheckoutStep(null);
         } else if (data.status === 'failed' || data.status === 'expired') {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
           setPaymentProcessing(false);
+          setPaymentTimeout(false);
           setPaymentError('Payment failed or expired. Please try again.');
         } else if (data.success === false && data.error) {
+          if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+          pollTimeoutRef.current = null;
           setPaymentProcessing(false);
+          setPaymentTimeout(false);
           setPaymentError(data.error || 'Could not verify payment. Please try again.');
         } else {
           setTimeout(poll, 2000);
@@ -299,6 +319,19 @@ export default function HatCustomizer() {
       }
     };
     poll();
+  };
+
+  const cancelPaymentProcessing = () => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    setPaymentProcessing(false);
+    setPaymentTimeout(false);
+    setSumupCheckoutId(null);
+    setShowSumupWidget(false);
+    sumupWidgetMountedRef.current = false;
+    setPaymentError('');
   };
 
   // Timeout if SumUp script never loads (e.g. blocked by browser/ad blocker)
@@ -3996,9 +4029,32 @@ export default function HatCustomizer() {
                                   )}
                                   {paymentProcessing && (
                                     <div className="mb-4 p-6 bg-purple-50 border-2 border-purple-500 rounded-xl text-center">
-                                      <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
-                                      <p className="text-purple-800 font-semibold">Checking payment status...</p>
-                                      <p className="text-purple-600 text-sm mt-1">Please wait a moment.</p>
+                                      {paymentTimeout ? (
+                                        <>
+                                          <p className="text-purple-800 font-semibold mb-2">Payment is taking longer than expected.</p>
+                                          <p className="text-purple-600 text-sm mb-4">Check your email for confirmation, or try again below.</p>
+                                          <button
+                                            type="button"
+                                            onClick={cancelPaymentProcessing}
+                                            className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+                                          >
+                                            Try again
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div className="animate-spin rounded-full h-10 w-10 border-2 border-purple-500 border-t-transparent mx-auto mb-3" />
+                                          <p className="text-purple-800 font-semibold">Checking payment status...</p>
+                                          <p className="text-purple-600 text-sm mt-1 mb-4">Please wait a moment.</p>
+                                          <button
+                                            type="button"
+                                            onClick={cancelPaymentProcessing}
+                                            className="text-sm text-purple-600 hover:text-purple-800 font-medium underline"
+                                          >
+                                            Cancel and try again
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                   {!paymentProcessing && checkoutLoading && (

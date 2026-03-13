@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const checkoutId = searchParams.get('checkoutId');
+    const debug = searchParams.get('debug') === '1';
     if (!checkoutId) {
       return NextResponse.json(
         { success: false, error: 'checkoutId required' },
@@ -118,6 +119,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       status: status === 'FAILED' ? 'failed' : status === 'EXPIRED' ? 'expired' : 'pending',
+      ...(debug && { _debug: { sumupStatus: status, raw: data } }),
     });
   } catch (error: unknown) {
     console.error('Custom order check-status error:', error);

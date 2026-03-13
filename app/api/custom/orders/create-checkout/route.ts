@@ -126,6 +126,10 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.cocohawaii.world';
     const paymentReturnUrl = `${baseUrl.replace(/\/$/, '')}/member/custom-orders?payment_return=1`;
 
+    // SumUp sandbox: amount 11 always fails by design. Use a different amount for testing.
+    if (amount === 11) {
+      console.warn('[SumUp] Amount 11 always fails in sandbox. Use a different amount for testing.');
+    }
     const sumupRes = await fetch('https://api.sumup.com/v0.1/checkouts', {
       method: 'POST',
       headers: {
