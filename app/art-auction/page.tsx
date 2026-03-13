@@ -16,10 +16,10 @@ export default function ArtAuctionPage() {
         <PaintDrips variant="hero" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold mb-6">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-serif font-bold mb-2">
               {t('auction.artAuctionTitle')}
             </h1>
-            <p className="text-xl md:text-2xl font-script text-gray-700 mb-8">
+            <p className="text-2xl md:text-3xl font-script text-gray-700 mb-8">
               {t('auction.exclusiveArtworks')}
             </p>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">

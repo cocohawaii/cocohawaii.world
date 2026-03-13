@@ -6,7 +6,7 @@
     "createHat": "Crea Tu Sombrero",
     "story": "La Historia",
     "runway": "La Pasarela",
-    "auction": "Subasta",
+    "auction": "Art Drops",
     "login": "Iniciar Sesión",
     "signup": "Registrarse"
   },
@@ -231,7 +231,7 @@
     "viewLiveAuctions": "Ver Subastas en Vivo",
     "artAuctionTitle": "Art Drops",
     "exclusiveArtworks": "Premios",
-    "discoverPieces": "Descubre piezas de arte únicas y colecciones exclusivas. Cada pieza cuenta una historia.",
+    "discoverPieces": "Disfruta de premios de rifas y descubre piezas de arte únicas y colecciones exclusivas en subasta. Cada pieza cuenta una historia y aporta energía única a tu espacio.",
     "browseCollections": "Explorar Colecciones",
     "biddingIsLive": "Las Pujas Están Activas",
     "bidWithStarBids": "Puja por creaciones artísticas exclusivas con Star Bids. Cada pieza es única y disponible por tiempo limitado.",
