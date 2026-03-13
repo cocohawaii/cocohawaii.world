@@ -3973,7 +3973,7 @@ export default function HatCustomizer() {
                                         }}
                                         onError={(err) => {
                                           console.error('PayPal error:', err);
-                                          setPaymentError(err?.message || 'PayPal payment failed. Please try again.');
+                                          setPaymentError(String(err?.message || 'PayPal payment failed. Please try again.'));
                                         }}
                                       />
                                     </PayPalScriptProvider>
