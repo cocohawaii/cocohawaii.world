@@ -72,9 +72,9 @@ export async function GET(request: NextRequest) {
           return `${i + 1}. ${form}${color ? ` ${color}` : ''}${art}`;
         }).join('<br>');
 
-        const subtotal = totalPrice - shippingCost;
         const shippingCost = Number(first.shipping_price) ?? 0;
         const totalPrice = Number(first.final_total_price) ?? 0;
+        const subtotal = totalPrice - shippingCost;
         const hatCount = rows?.length ?? 1;
 
         sendCustomOrderConfirmationEmail({
