@@ -114,7 +114,7 @@ export default async function HomePage() {
                     priority
                   />
                 </div>
-                <div className="-mt-20 md:-mt-24">
+                <div className="-mt-16 md:-mt-20">
                   <p className="text-3xl md:text-4xl font-script text-gray-700 mt-0">
                     {t('home.heroTagline')}
                   </p>
