@@ -85,3 +85,14 @@ Wix blocks direct downloads from their CDN. The migration now uses browser-like 
 2. Restart the dev server and run the migration again.
 
 If 403 persists, Wix may have tightened restrictions. You can manually download images from your Wix Media Manager and upload them via the admin hat editor.
+
+## Videos: Wix Blocks Direct Downloads
+
+**Wix blocks direct downloads from `video.wixstatic.com`** – images work (proxy + referer), but videos return 403. This is a Wix platform restriction.
+
+**Workaround for videos:**
+1. Use **Migrate one hat (images only)** to migrate main image + gallery without videos.
+2. For top video and making-of: download from **Wix Media Manager** (or use original files if you have them), then **upload via the hat editor** (edit hat → Top Eyes Video / Making Of → "Or upload video").
+3. The upload goes to Supabase Storage; the hat will save the new URL.
+
+**Where to see making-of:** The making-of video appears on the **hat product page** (`/hats/[hat-slug]`), not in the admin grid. If migration succeeded for making_of, open the hat's product page to verify.

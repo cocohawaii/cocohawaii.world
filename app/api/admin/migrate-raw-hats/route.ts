@@ -1,10 +1,16 @@
 /**
- * Phase 3: Export rawHatCollection from Wix to Supabase
+ * Phase 3: Export rawHatCollection from Wix to Supabase + migrate images to Supabase Storage
  */
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getWixClient } from '@/app/hooks/useWixClientServer';
 import { createClient as createSupabaseClient } from '@/lib/supabase/server';
+import { migrateImageToSupabase } from '@/lib/media-migration';
+
+function isWixImageUrl(url: string | null | undefined): boolean {
+  if (!url?.trim()) return false;
+  return url.startsWith('wix:image') || url.includes('static.wixstatic.com');
+}
 
 export async function POST(request: Request) {
   try {
@@ -41,10 +47,29 @@ export async function POST(request: Request) {
         raw_hat_id: d.rawHatId ?? it._id ?? d._id,
       };
     });
-    if (rows.length === 0) return NextResponse.json({ success: true, migrated: 0 });
+    if (rows.length === 0) return NextResponse.json({ success: true, migrated: 0, imagesMigrated: 0 });
     const { error } = await admin.from('raw_hats').upsert(rows, { onConflict: 'wix_id' });
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, migrated: rows.length });
+
+    let imagesMigrated = 0;
+    for (const row of rows) {
+      if (row.hat_product_image && isWixImageUrl(row.hat_product_image)) {
+        try {
+          const newUrl = await migrateImageToSupabase(row.hat_product_image, `raw_hats/${row.wix_id}/product`);
+          if (newUrl) {
+            const { data: existing } = await admin.from('raw_hats').select('id').eq('wix_id', row.wix_id).single();
+            if (existing) {
+              await admin.from('raw_hats').update({ hat_product_image: newUrl }).eq('id', existing.id);
+              imagesMigrated++;
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed to migrate image for raw hat ${row.wix_id}:`, e);
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, migrated: rows.length, imagesMigrated });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Failed' }, { status: 500 });
   }

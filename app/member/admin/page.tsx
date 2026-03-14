@@ -88,8 +88,8 @@ export default function AdminPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [migrateMediaLoading, setMigrateMediaLoading] = useState(false);
   const [migrateMediaResult, setMigrateMediaResult] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'finished' | 'custom' | 'premade' | 'auctionRaffles' | 'starBidPacks' | 'helpTickets' | 'runway'>('finished');
-  const [analyticsTab, setAnalyticsTab] = useState<'hats' | 'decor' | 'analytics'>('hats');
+  const [activeTab, setActiveTab] = useState<'finished' | 'custom' | 'premade' | 'rawHats' | 'auctionRaffles' | 'starBidPacks' | 'helpTickets' | 'runway'>('finished');
+  const [analyticsTab, setAnalyticsTab] = useState<'hats' | 'decor' | 'rawHats' | 'analytics'>('hats');
   const [rafflesSubTab, setRafflesSubTab] = useState<'hats'>('hats');
   const [analytics, setAnalytics] = useState<{
     globalUniqueVisitors: number;
@@ -119,6 +119,19 @@ export default function AdminPage() {
     totalEarnings: number;
     totalHats: number;
   } | null>(null);
+  const [rawHats, setRawHats] = useState<any[]>([]);
+  const [rawHatsLoading, setRawHatsLoading] = useState(false);
+  const [showAddRawHat, setShowAddRawHat] = useState(false);
+  const [addRawHatFormData, setAddRawHatFormData] = useState<{
+    hatForm: string;
+    newHatForm: string;
+    hatColorName: string;
+    hatProductName: string;
+    hatProductImage: string;
+    hatColorHex: string;
+    rawHatPrice: string;
+  }>({ hatForm: '', newHatForm: '', hatColorName: '', hatProductName: '', hatProductImage: '', hatColorHex: '', rawHatPrice: '150' });
+  const [savingAddRawHat, setSavingAddRawHat] = useState(false);
   const [draggedGalleryIdx, setDraggedGalleryIdx] = useState<number | null>(null);
   const [decorItems, setDecorItems] = useState<any[]>([]);
   const [decorLoading, setDecorLoading] = useState(false);
@@ -294,6 +307,23 @@ export default function AdminPage() {
       });
     } finally {
       setCustomOrdersLoading(false);
+    }
+  };
+
+  const fetchRawHats = async () => {
+    try {
+      setRawHatsLoading(true);
+      const response = await fetch('/api/admin/raw-hats', { cache: 'no-store' });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setRawHats(data.hats || []);
+      } else {
+        setRawHats([]);
+      }
+    } catch (err) {
+      setRawHats([]);
+    } finally {
+      setRawHatsLoading(false);
     }
   };
 
@@ -1029,6 +1059,17 @@ export default function AdminPage() {
     return data.url;
   };
 
+  // Upload image for raw hats (media bucket)
+  const uploadRawHatImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload/image', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || data?.error || 'Upload failed');
+    if (!data?.url) throw new Error('No URL returned');
+    return data.url;
+  };
+
   // Upload image to Supabase Storage (for hats) - direct client upload bypasses Vercel 4.5MB limit
   const uploadImageToWix = async (file: File): Promise<string> => {
     const supabase = createSupabaseClient();
@@ -1269,6 +1310,24 @@ export default function AdminPage() {
                 {decorItems.length > 0 && (
                   <span className="ml-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] inline-flex items-center justify-center shadow-lg">
                     {decorItems.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setAnalyticsTab('rawHats');
+                  fetchRawHats();
+                }}
+                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 border-b-4 ${
+                  analyticsTab === 'rawHats'
+                    ? 'border-purple-600 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Raw Hats
+                {rawHats.length > 0 && (
+                  <span className="ml-2 bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] inline-flex items-center justify-center shadow-lg">
+                    {rawHats.length}
                   </span>
                 )}
               </button>
@@ -1562,67 +1621,6 @@ export default function AdminPage() {
                 className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold border border-white/40 transition-colors"
               >
                 Reorder
-              </button>
-              <button
-                onClick={async () => {
-                  setMigrateMediaResult(null);
-                  setMigrateMediaLoading(true);
-                  try {
-                    const listRes = await fetch('/api/admin/migrate-media-list?table=hats', { credentials: 'include' });
-                    const listData = await listRes.json();
-                    if (!listData.success || !listData.items?.length) {
-                      setMigrateMediaResult(listData.items?.length === 0 ? 'Nothing to migrate (all images already in Supabase).' : `Error: ${listData.error || 'Failed to get list'}`);
-                      return;
-                    }
-                    const items = listData.items as Array<{ hatId: number; wixId: string; field: string; url: string; storagePath: string; isVideo: boolean; galleryIndex?: number }>;
-                    const supabase = createSupabaseClient();
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (!user) throw new Error('Please log in');
-                    let migrated = 0;
-                    const errors: string[] = [];
-                    const getExt = (url: string, def: string) => {
-                      const m = url.match(/\.(jpg|jpeg|png|webp|gif|mp4|webm|mov)$/i);
-                      return m ? m[1].toLowerCase() : def;
-                    };
-                    for (let i = 0; i < items.length; i++) {
-                      const item = items[i];
-                      setMigrateMediaResult(`Migrating ${i + 1}/${items.length}...`);
-                      try {
-                        const r = await fetch(item.url, { mode: 'cors', referrerPolicy: 'no-referrer' });
-                        if (!r.ok) throw new Error(`${r.status}`);
-                        const blob = await r.blob();
-                        const ext = getExt(item.url, item.isVideo ? 'mp4' : 'png');
-                        const fullPath = item.storagePath.endsWith(`.${ext}`) ? item.storagePath : `${item.storagePath}.${ext}`;
-                        const contentType = item.isVideo ? `video/${ext === 'mov' ? 'quicktime' : ext}` : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-                        const { error: upErr } = await supabase.storage.from(item.isVideo ? 'videos' : 'media').upload(fullPath, blob, { contentType, upsert: true });
-                        if (upErr) throw new Error(upErr.message);
-                        const { data: pub } = supabase.storage.from(item.isVideo ? 'videos' : 'media').getPublicUrl(fullPath);
-                        const updateRes = await fetch('/api/admin/migrate-media-update', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ hatId: item.hatId, field: item.field, newUrl: pub.publicUrl, galleryIndex: item.galleryIndex }),
-                          credentials: 'include',
-                        });
-                        const updateData = await updateRes.json();
-                        if (!updateData.success) throw new Error(updateData.error || 'Update failed');
-                        migrated++;
-                      } catch (e: any) {
-                        errors.push(`hat ${item.wixId} ${item.field}: ${e.message}`);
-                      }
-                    }
-                    setMigrateMediaResult(`Migrated ${migrated}/${items.length}.${errors.length ? ` Errors: ${errors.slice(0, 5).join('; ')}${errors.length > 5 ? ` (+${errors.length - 5} more)` : ''}` : ''}`);
-                    await fetchHats(hatsSortBy);
-                  } catch (err: any) {
-                    setMigrateMediaResult(`Error: ${err.message}`);
-                  } finally {
-                    setMigrateMediaLoading(false);
-                  }
-                }}
-                disabled={migrateMediaLoading}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold border border-white/40 transition-colors disabled:opacity-50"
-                title="Copy Wix hat images to Supabase (runs in your browser to bypass Wix 403)"
-              >
-                {migrateMediaLoading ? 'Migrating...' : 'Migrate Hat Images'}
               </button>
             </div>
             <button
@@ -2941,6 +2939,235 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          </>
+        )}
+
+        {/* Raw Hats (sub-tab under My World) */}
+        {activeTab === 'finished' && analyticsTab === 'rawHats' && (
+          <>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold text-gray-900">Raw Hats</h2>
+              <button
+                onClick={() => {
+                  setShowAddRawHat(!showAddRawHat);
+                  if (!showAddRawHat) {
+                    const forms = [...new Set(rawHats.map((h) => h.hatForm).filter(Boolean))].sort();
+                    setAddRawHatFormData({
+                      hatForm: forms[0] || '',
+                      newHatForm: '',
+                      hatColorName: '',
+                      hatProductName: '',
+                      hatProductImage: '',
+                      hatColorHex: '',
+                      rawHatPrice: '150',
+                    });
+                  }
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:from-purple-600 hover:to-pink-600 transition-all"
+              >
+                {showAddRawHat ? 'Cancel' : 'Add more raw hats'}
+              </button>
+            </div>
+
+            {/* Add Raw Hat form */}
+            {showAddRawHat && (
+              <div className="mb-8 bg-white rounded-2xl shadow-xl border-2 border-purple-200 p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Add Raw Hat</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Type (hat form)</label>
+                    <select
+                      value={addRawHatFormData.hatForm === '__new__' ? '__new__' : addRawHatFormData.hatForm}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setAddRawHatFormData({ ...addRawHatFormData, hatForm: v, newHatForm: v === '__new__' ? addRawHatFormData.newHatForm : '' });
+                      }}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                    >
+                      <option value="">— Select type —</option>
+                      {[...new Set(rawHats.map((h) => h.hatForm).filter(Boolean))].sort().map((f) => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                      <option value="__new__">+ Add new type</option>
+                    </select>
+                    {addRawHatFormData.hatForm === '__new__' && (
+                      <input
+                        type="text"
+                        value={addRawHatFormData.newHatForm}
+                        onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, newHatForm: e.target.value })}
+                        placeholder="e.g. Arrow, Flat, Golf"
+                        className="mt-2 w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Color name</label>
+                    <input
+                      type="text"
+                      value={addRawHatFormData.hatColorName}
+                      onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, hatColorName: e.target.value })}
+                      placeholder="e.g. Beige, Navy Blue"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Product name</label>
+                    <input
+                      type="text"
+                      value={addRawHatFormData.hatProductName}
+                      onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, hatProductName: e.target.value })}
+                      placeholder="e.g. Arrow | Beige"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Price (€)</label>
+                    <input
+                      type="number"
+                      value={addRawHatFormData.rawHatPrice}
+                      onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, rawHatPrice: e.target.value })}
+                      placeholder="150"
+                      min="0"
+                      step="0.01"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Image URL or upload</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={addRawHatFormData.hatProductImage}
+                        onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, hatProductImage: e.target.value })}
+                        placeholder="https://... or upload below"
+                        className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                      />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              setAddRawHatFormData({ ...addRawHatFormData, hatProductImage: 'uploading...' });
+                              const url = await uploadRawHatImage(file);
+                              setAddRawHatFormData((prev) => ({ ...prev, hatProductImage: url }));
+                              alert('✅ Image uploaded');
+                            } catch (err: any) {
+                              alert(`Upload failed: ${err?.message}`);
+                              setAddRawHatFormData((prev) => ({ ...prev, hatProductImage: '' }));
+                            }
+                          }
+                          e.target.value = '';
+                        }}
+                        className="px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 cursor-pointer text-sm"
+                      />
+                    </div>
+                    {addRawHatFormData.hatProductImage && addRawHatFormData.hatProductImage !== 'uploading...' && addRawHatFormData.hatProductImage.startsWith('http') && (
+                      <div className="mt-2 w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-300">
+                        <img src={addRawHatFormData.hatProductImage} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Color hex (optional)</label>
+                    <input
+                      type="text"
+                      value={addRawHatFormData.hatColorHex}
+                      onChange={(e) => setAddRawHatFormData({ ...addRawHatFormData, hatColorHex: e.target.value })}
+                      placeholder="#f5f5dc"
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowAddRawHat(false)}
+                    className="px-6 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const form = addRawHatFormData.hatForm === '__new__' ? addRawHatFormData.newHatForm.trim() : addRawHatFormData.hatForm;
+                      if (!form) {
+                        alert('Please select or enter a hat type');
+                        return;
+                      }
+                      if (!addRawHatFormData.hatProductName.trim()) {
+                        alert('Please enter a product name');
+                        return;
+                      }
+                      setSavingAddRawHat(true);
+                      try {
+                        const res = await fetch('/api/admin/raw-hats', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            hatForm: form,
+                            hatColorName: addRawHatFormData.hatColorName.trim(),
+                            hatProductName: addRawHatFormData.hatProductName.trim(),
+                            hatProductImage: addRawHatFormData.hatProductImage && addRawHatFormData.hatProductImage !== 'uploading...' ? addRawHatFormData.hatProductImage.trim() : undefined,
+                            hatColorHex: addRawHatFormData.hatColorHex.trim() || undefined,
+                            rawHatPrice: parseFloat(addRawHatFormData.rawHatPrice) || 150,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || 'Failed to add raw hat');
+                        setSuccessMessage(`Raw hat "${addRawHatFormData.hatProductName}" added!`);
+                        setShowSuccessPopup(true);
+                        setShowAddRawHat(false);
+                        setAddRawHatFormData({ hatForm: '', newHatForm: '', hatColorName: '', hatProductName: '', hatProductImage: '', hatColorHex: '', rawHatPrice: '150' });
+                        await fetchRawHats();
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to add raw hat');
+                      } finally {
+                        setSavingAddRawHat(false);
+                      }
+                    }}
+                    disabled={savingAddRawHat}
+                    className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
+                  >
+                    {savingAddRawHat ? 'Adding...' : 'Add Raw Hat'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {rawHatsLoading ? (
+              <div className="bg-white rounded-2xl shadow-xl p-12 border-2 border-purple-200 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading raw hats...</p>
+              </div>
+            ) : rawHats.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-xl p-12 border-2 border-purple-200 text-center">
+                <div className="text-6xl mb-4">🎩</div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">No Raw Hats Yet</h3>
+                <p className="text-gray-600">Click &quot;Add more raw hats&quot; to add your first raw hat.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {rawHats.map((hat) => (
+                  <div
+                    key={hat.wixId}
+                    className="bg-white rounded-2xl shadow-xl border-2 border-purple-200 overflow-hidden hover:shadow-2xl transition-all"
+                  >
+                    <div className="aspect-square relative bg-gray-100">
+                      {hat.hatProductImage ? (
+                        <WixImage src={hat.hatProductImage} alt={hat.hatProductName || 'Raw hat'} fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-6xl">🎩</div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <p className="font-bold text-gray-900 truncate">{hat.hatProductName || hat.hatForm || 'Untitled'}</p>
+                      <p className="text-sm text-gray-600">{hat.hatForm} · {hat.hatColorName || '—'}</p>
+                      <p className="text-sm font-semibold text-purple-600 mt-1">€{hat.rawHatPrice.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
 

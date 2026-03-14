@@ -52,19 +52,23 @@ export function convertWixVideoUrl(videoRef: string | null | undefined): string 
     return fixed;
   }
   
-  // Wix video reference: wix:video://videos/abc123.mp4
+  // Wix video reference: wix:video://v1/{fileId}/{filename}.mp4 or wix:video://videos/abc123.mp4
   if (videoRef.startsWith('wix:video')) {
     const videoPath = videoRef.replace('wix:video://', '').split('#')[0];
-    // Construct Wix video CDN URL with proper encoding
     const pathParts = videoPath.split('/');
-    if (pathParts.length >= 2) {
-      const fileId = pathParts[0];
-      const filename = pathParts.slice(1).join('/');
-      // Properly encode the filename
-      const encodedFilename = encodeURIComponent(filename);
-      return `https://video.wixstatic.com/video/${fileId}/${encodedFilename}`;
+    let fileId: string;
+    let filename: string;
+    if (pathParts[0] === 'v1' && pathParts.length >= 3) {
+      fileId = pathParts[1];
+      filename = pathParts.slice(2).join('/');
+    } else if (pathParts.length >= 2) {
+      fileId = pathParts[0];
+      filename = pathParts.slice(1).join('/');
+    } else {
+      return `https://video.wixstatic.com/video/${videoPath}`;
     }
-    return `https://video.wixstatic.com/video/${videoPath}`;
+    const encodedFilename = encodeURIComponent(filename);
+    return `https://video.wixstatic.com/video/${fileId}/${encodedFilename}`;
   }
   
   return videoRef;
@@ -81,8 +85,14 @@ export function convertWixImageUrl(wixUrl: string | undefined): string | undefin
   }
   
   // If it's a Wix image reference (wix:image://...), convert to CDN URL
+  // Format: wix:image://v1/{fileId}/{filename}#params - Wix CDN only accepts /media/{fileId}
   if (wixUrl.startsWith('wix:image://')) {
     const imagePath = wixUrl.replace('wix:image://', '').split('#')[0];
+    const parts = imagePath.split('/');
+    if (parts[0] === 'v1' && parts.length >= 2) {
+      const fileId = parts[1];
+      return `https://static.wixstatic.com/media/${fileId}`;
+    }
     return `https://static.wixstatic.com/media/${imagePath}`;
   }
   

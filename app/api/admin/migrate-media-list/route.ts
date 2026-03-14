@@ -50,19 +50,13 @@ export async function GET(request: NextRequest) {
 
     if (table === 'hats') {
       const { data: hats } = await admin!.from('hats').select('id, wix_id, main_hat_image, top_video_eyes, making_of_product_page, gallery');
+      const imageItems: typeof items = [];
+      const videoItems: typeof items = [];
       for (const h of hats || []) {
         const prefix = `hats/${h.wix_id}`;
         if (h.main_hat_image && isWixMediaUrl(h.main_hat_image) && !isSupabaseUrl(h.main_hat_image)) {
           const url = resolveImageUrl(h.main_hat_image);
-          if (url) items.push({ hatId: h.id, wixId: h.wix_id, field: 'main_hat_image', url, storagePath: `${prefix}/main`, isVideo: false });
-        }
-        if (h.top_video_eyes && isWixMediaUrl(h.top_video_eyes) && !isSupabaseUrl(h.top_video_eyes)) {
-          const url = resolveVideoUrl(h.top_video_eyes);
-          if (url) items.push({ hatId: h.id, wixId: h.wix_id, field: 'top_video_eyes', url, storagePath: `${prefix}/top-video`, isVideo: true });
-        }
-        if (h.making_of_product_page && isWixMediaUrl(h.making_of_product_page) && !isSupabaseUrl(h.making_of_product_page)) {
-          const url = resolveVideoUrl(h.making_of_product_page);
-          if (url) items.push({ hatId: h.id, wixId: h.wix_id, field: 'making_of_product_page', url, storagePath: `${prefix}/making-of`, isVideo: true });
+          if (url) imageItems.push({ hatId: h.id, wixId: h.wix_id, field: 'main_hat_image', url, storagePath: `${prefix}/main`, isVideo: false });
         }
         const gallery = (h.gallery || []) as Array<{ src?: string } | string>;
         for (let i = 0; i < gallery.length; i++) {
@@ -70,10 +64,19 @@ export async function GET(request: NextRequest) {
           const src = typeof item === 'string' ? item : item?.src;
           if (src && isWixMediaUrl(src) && !isSupabaseUrl(src)) {
             const url = resolveImageUrl(src);
-            if (url) items.push({ hatId: h.id, wixId: h.wix_id, field: 'gallery', url, storagePath: `${prefix}/gallery/${i}`, isVideo: false, galleryIndex: i });
+            if (url) imageItems.push({ hatId: h.id, wixId: h.wix_id, field: 'gallery', url, storagePath: `${prefix}/gallery/${i}`, isVideo: false, galleryIndex: i });
           }
         }
+        if (h.top_video_eyes && isWixMediaUrl(h.top_video_eyes) && !isSupabaseUrl(h.top_video_eyes)) {
+          const url = resolveVideoUrl(h.top_video_eyes);
+          if (url) videoItems.push({ hatId: h.id, wixId: h.wix_id, field: 'top_video_eyes', url, storagePath: `${prefix}/top-video`, isVideo: true });
+        }
+        if (h.making_of_product_page && isWixMediaUrl(h.making_of_product_page) && !isSupabaseUrl(h.making_of_product_page)) {
+          const url = resolveVideoUrl(h.making_of_product_page);
+          if (url) videoItems.push({ hatId: h.id, wixId: h.wix_id, field: 'making_of_product_page', url, storagePath: `${prefix}/making-of`, isVideo: true });
+        }
       }
+      items.push(...imageItems, ...videoItems);
     }
 
     return NextResponse.json({ success: true, items });
