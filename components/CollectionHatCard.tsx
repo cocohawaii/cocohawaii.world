@@ -31,6 +31,9 @@ interface CollectionHatCardProps {
   isSelected: boolean;
   onToggleSelect?: (hat: Hat) => void;
   t?: (key: string) => string;
+  priority?: boolean;
+  /** Lower quality for below-fold images = faster load when scrolled into view */
+  quality?: number;
 }
 
 export default function CollectionHatCard({
@@ -39,6 +42,8 @@ export default function CollectionHatCard({
   isSelected,
   onToggleSelect,
   t,
+  priority,
+  quality,
 }: CollectionHatCardProps) {
   const gallerySrc = getFirstGallerySrc(hat);
   const hatSlug = hat.slug || generateSlug(hat.title || '', hat._id);
@@ -56,6 +61,8 @@ export default function CollectionHatCard({
           fill
           className={imageClassName}
           sizes={sizes}
+          priority={priority}
+          quality={quality}
         />
       </div>
       {gallerySrc ? (
@@ -66,6 +73,8 @@ export default function CollectionHatCard({
             fill
             className={imageClassName}
             sizes={sizes}
+            priority={priority}
+            quality={quality}
           />
         </div>
       ) : null}

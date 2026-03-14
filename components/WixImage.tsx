@@ -3,14 +3,19 @@
 import Image from 'next/image';
 import { ComponentProps, ImgHTMLAttributes } from 'react';
 
-// Check if URL is from Wix CDN or Supabase Storage
+// Check if URL is from Supabase Storage (use Next.js Image for optimization)
+function isSupabaseUrl(src: string | undefined): boolean {
+  if (!src) return false;
+  return src.includes('supabase') && src.includes('storage');
+}
+
+// Check if URL is from Wix CDN (use img tag - Next.js Image can have CORS issues with Wix)
 function isWixUrl(src: string | undefined): boolean {
   if (!src) return false;
   return src.includes('static.wixstatic.com') || 
          src.includes('media.wix.com') || 
          src.includes('wixsite.com') ||
-         src.startsWith('wix:image://') ||
-         (src.includes('supabase') && src.includes('storage'));
+         src.startsWith('wix:image://');
 }
 
 // Clean up Wix image URLs that might have malformed paths. Supabase URLs pass through.
@@ -28,22 +33,40 @@ function cleanWixUrl(url: string): string {
   return url;
 }
 
-// Wrapper for Next.js Image that uses regular img tag for Wix images to avoid CORS issues
+// Wrapper for Next.js Image: Supabase uses Image (optimized), Wix uses img (CORS)
 export default function WixImage({
   src,
   fill,
   className,
   alt,
   sizes,
+  priority,
+  quality = 80,
   ...props
 }: ComponentProps<typeof Image>) {
-  // If it's a Wix or Supabase URL, use regular img tag to avoid CORS/Next.js Image issues
-  const isWix = typeof src === 'string' && isWixUrl(src);
-  const cleanedSrc = isWix && typeof src === 'string' ? cleanWixUrl(src) : (typeof src === 'string' ? src : String(src));
+  const srcStr = typeof src === 'string' ? src : String(src ?? '');
+  const fromSupabase = isSupabaseUrl(srcStr);
+  const fromWix = isWixUrl(srcStr);
+  const cleanedSrc = fromWix ? cleanWixUrl(srcStr) : srcStr;
 
-  if (isWix && fill) {
+  // Supabase: use Next.js Image for automatic optimization (resize, WebP, lazy load)
+  if (fromSupabase) {
+    return (
+      <Image
+        {...props}
+        src={srcStr}
+        fill={fill}
+        className={className}
+        alt={alt || ''}
+        sizes={fill ? sizes || '(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw' : sizes}
+        priority={priority}
+        quality={quality}
+      />
+    );
+  }
+
+  if (fromWix && fill) {
     // Use regular img tag with absolute positioning for Wix images with fill
-    // Use referrerPolicy to help with CORS and allow cross-origin images
     return (
       <img
         src={cleanedSrc}
@@ -56,22 +79,22 @@ export default function WixImage({
           inset: 0,
           objectFit: 'cover',
         }}
-        loading="lazy"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
         referrerPolicy="no-referrer"
+        fetchPriority={priority ? 'high' : undefined}
         onError={(e) => {
           console.warn('Image failed to load:', cleanedSrc);
-          // Try to load with a different approach or show placeholder
           const target = e.target as HTMLImageElement;
           if (target.src !== cleanedSrc) {
             target.src = cleanedSrc;
           }
         }}
-        onLoad={() => {}}
       />
     );
   }
   
-  if (isWix) {
+  if (fromWix) {
     // Use regular img tag for Wix images without fill
     // Use referrerPolicy to help with CORS
     return (
@@ -79,8 +102,10 @@ export default function WixImage({
         src={cleanedSrc}
         alt={alt || ''}
         className={className}
-        loading="lazy"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
         referrerPolicy="no-referrer"
+        fetchPriority={priority ? 'high' : undefined}
         onError={(e) => {
           console.warn('Image failed to load:', cleanedSrc);
           const target = e.target as HTMLImageElement;
@@ -88,7 +113,6 @@ export default function WixImage({
             target.src = cleanedSrc;
           }
         }}
-        onLoad={() => {}}
         {...(props as ImgHTMLAttributes<HTMLImageElement>)}
       />
     );

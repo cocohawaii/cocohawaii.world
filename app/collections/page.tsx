@@ -192,7 +192,7 @@ function CollectionsPageContent() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {hats.map((hat) => (
+              {hats.map((hat, index) => (
                 <CollectionHatCard
                   key={hat._id}
                   hat={hat}
@@ -200,6 +200,8 @@ function CollectionsPageContent() {
                   isSelected={selectMode && selectedHats.some(h => h._id === hat._id)}
                   onToggleSelect={toggleHatSelection}
                   t={t}
+                  priority={index < 6}
+                  quality={index < 6 ? 85 : 72}
                 />
               ))}
             </div>
