@@ -52,10 +52,10 @@ export default async function HomePage() {
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 pt-8 md:pt-12 pb-20 md:pb-28">
         <PaintDrips variant="hero" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-[1.18fr_0.82fr] gap-12 md:gap-16 items-center">
+          <div className="grid md:grid-cols-[1.35fr_0.65fr] gap-12 md:gap-16 items-center">
             <div className="relative order-2 md:order-1 flex justify-center z-0">
               {/* White blurred area around video — strong full-white blurred outer shadow */}
-              <div className="w-full max-w-[calc(100%+4rem)] md:max-w-[calc(100%+5rem)] -m-4 md:-m-6 rounded-3xl p-4 md:p-8 bg-white/95 backdrop-blur-2xl shadow-[0_0_60px_30px_rgba(255,255,255,0.95),0_0_120px_60px_rgba(255,255,255,0.8),0_0_180px_90px_rgba(255,255,255,0.5)]">
+              <div className="w-full max-w-[calc(100%+5rem)] md:max-w-[calc(100%+6rem)] -m-4 md:-m-6 rounded-3xl p-3 md:p-6 bg-white/95 backdrop-blur-2xl shadow-[0_0_60px_30px_rgba(255,255,255,0.95),0_0_120px_60px_rgba(255,255,255,0.8),0_0_180px_90px_rgba(255,255,255,0.5)]">
                 <div className="relative w-full rounded-2xl overflow-hidden bg-black" style={{ aspectRatio: '16/9' }}>
                 {homepageVideoUrl ? (
                   <HomepageVideo

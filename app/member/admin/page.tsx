@@ -46,6 +46,76 @@ const HAT_IMAGINE_MESSAGES = [
   'Wear your story. Own your style.',
 ];
 
+function PageVideoUploadBlock({
+  currentUrl,
+  onSave,
+  saving,
+}: {
+  currentUrl: string;
+  onSave: (url: string) => Promise<void>;
+  saving: boolean;
+}) {
+  const [urlInput, setUrlInput] = useState(currentUrl);
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => { setUrlInput(currentUrl); }, [currentUrl]);
+  return (
+    <div className="space-y-4">
+      {currentUrl && (
+        <div className="rounded-lg overflow-hidden bg-black max-w-md aspect-video">
+          <video src={currentUrl} controls className="w-full h-full object-contain" />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-4 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Video URL</label>
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="https://... or upload below"
+            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+          />
+        </div>
+        <button
+          onClick={() => onSave(urlInput.trim())}
+          disabled={saving || !urlInput.trim()}
+          className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">Or upload video file</label>
+        <input
+          type="file"
+          accept="video/*"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setUploading(true);
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+              const res = await fetch('/api/upload/video', { method: 'POST', body: formData, credentials: 'include' });
+              const data = await res.json();
+              if (!res.ok || !data.url) throw new Error(data.error || 'Upload failed');
+              setUrlInput(data.url);
+              await onSave(data.url);
+            } catch (err: any) {
+              alert(err?.message || 'Upload failed');
+            } finally {
+              setUploading(false);
+              e.target.value = '';
+            }
+          }}
+          disabled={uploading}
+          className="px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 cursor-pointer text-sm disabled:opacity-50"
+        />
+      </div>
+    </div>
+  );
+}
+
 const DECOR_IMAGINE_MESSAGES = [
   'Transform your space with art that speaks to your soul.',
   'Where every piece tells a story worth living.',
@@ -89,7 +159,7 @@ export default function AdminPage() {
   const [migrateMediaLoading, setMigrateMediaLoading] = useState(false);
   const [migrateMediaResult, setMigrateMediaResult] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'finished' | 'custom' | 'premade' | 'rawHats' | 'auctionRaffles' | 'starBidPacks' | 'helpTickets' | 'runway'>('finished');
-  const [analyticsTab, setAnalyticsTab] = useState<'hats' | 'decor' | 'rawHats' | 'analytics'>('hats');
+  const [analyticsTab, setAnalyticsTab] = useState<'hats' | 'decor' | 'rawHats' | 'pageVideos' | 'analytics'>('hats');
   const [rafflesSubTab, setRafflesSubTab] = useState<'hats'>('hats');
   const [analytics, setAnalytics] = useState<{
     globalUniqueVisitors: number;
@@ -132,6 +202,9 @@ export default function AdminPage() {
     rawHatPrice: string;
   }>({ hatForm: '', newHatForm: '', hatColorName: '', hatProductName: '', hatProductImage: '', hatColorHex: '', rawHatPrice: '150' });
   const [savingAddRawHat, setSavingAddRawHat] = useState(false);
+  const [pageVideos, setPageVideos] = useState<{ id: string; tag: string; videoUrl: string }[]>([]);
+  const [pageVideosLoading, setPageVideosLoading] = useState(false);
+  const [savingPageVideo, setSavingPageVideo] = useState(false);
   const [draggedGalleryIdx, setDraggedGalleryIdx] = useState<number | null>(null);
   const [decorItems, setDecorItems] = useState<any[]>([]);
   const [decorLoading, setDecorLoading] = useState(false);
@@ -324,6 +397,23 @@ export default function AdminPage() {
       setRawHats([]);
     } finally {
       setRawHatsLoading(false);
+    }
+  };
+
+  const fetchPageVideos = async () => {
+    try {
+      setPageVideosLoading(true);
+      const response = await fetch('/api/admin/page-videos', { cache: 'no-store' });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setPageVideos(data.videos || []);
+      } else {
+        setPageVideos([]);
+      }
+    } catch (err) {
+      setPageVideos([]);
+    } finally {
+      setPageVideosLoading(false);
     }
   };
 
@@ -1330,6 +1420,19 @@ export default function AdminPage() {
                     {rawHats.length}
                   </span>
                 )}
+              </button>
+              <button
+                onClick={() => {
+                  setAnalyticsTab('pageVideos');
+                  fetchPageVideos();
+                }}
+                className={`px-6 py-3 font-semibold text-lg transition-all duration-300 border-b-4 ${
+                  analyticsTab === 'pageVideos'
+                    ? 'border-purple-600 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Page Videos
               </button>
               <button
                 onClick={() => {
@@ -3168,6 +3271,83 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
+          </>
+        )}
+
+        {/* Page Videos (sub-tab under My World) — Homepage hero, MakingOf, etc. */}
+        {activeTab === 'finished' && analyticsTab === 'pageVideos' && (
+          <>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Page Videos</h2>
+              <p className="text-gray-600 mb-6">Upload videos for the homepage hero (top section) and MakingOf section.</p>
+              {pageVideosLoading ? (
+                <div className="bg-white rounded-2xl shadow-xl p-12 border-2 border-purple-200 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Homepage Hero Video */}
+                  <div className="bg-white rounded-2xl shadow-xl border-2 border-purple-200 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Homepage Hero Video</h3>
+                    <p className="text-sm text-gray-600 mb-4">The main video at the top of the homepage.</p>
+                    <PageVideoUploadBlock
+                      currentUrl={pageVideos.find((v) => v.tag === 'Homepage')?.videoUrl || ''}
+                      onSave={async (url) => {
+                        setSavingPageVideo(true);
+                        try {
+                          const res = await fetch('/api/admin/page-videos', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tag: 'Homepage', videoUrl: url }),
+                            credentials: 'include',
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed to save');
+                          await fetchPageVideos();
+                          setSuccessMessage('Homepage hero video saved!');
+                          setShowSuccessPopup(true);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to save');
+                        } finally {
+                          setSavingPageVideo(false);
+                        }
+                      }}
+                      saving={savingPageVideo}
+                    />
+                  </div>
+                  {/* Homepage MakingOf Video */}
+                  <div className="bg-white rounded-2xl shadow-xl border-2 border-purple-200 p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">Homepage MakingOf Video</h3>
+                    <p className="text-sm text-gray-600 mb-4">The &quot;Making of&quot; video in the homepage section below the hero.</p>
+                    <PageVideoUploadBlock
+                      currentUrl={pageVideos.find((v) => v.tag === 'Homepage MakingOf')?.videoUrl || ''}
+                      onSave={async (url) => {
+                        setSavingPageVideo(true);
+                        try {
+                          const res = await fetch('/api/admin/page-videos', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tag: 'Homepage MakingOf', videoUrl: url }),
+                            credentials: 'include',
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed to save');
+                          await fetchPageVideos();
+                          setSuccessMessage('MakingOf video saved!');
+                          setShowSuccessPopup(true);
+                        } catch (e: any) {
+                          alert(e.message || 'Failed to save');
+                        } finally {
+                          setSavingPageVideo(false);
+                        }
+                      }}
+                      saving={savingPageVideo}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
 
