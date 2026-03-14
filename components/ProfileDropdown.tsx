@@ -177,8 +177,8 @@ export default function ProfileDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border-2 border-purple-200 overflow-hidden z-50 animate-fade-in">
-          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200">
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border-2 border-purple-200 overflow-hidden z-50 animate-fade-in max-h-[calc(100vh-5rem)] flex flex-col">
+          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200 flex-shrink-0">
             <p className="font-bold text-gray-900 text-lg">{memberName}</p>
             <p className="text-sm text-gray-600">Member Account</p>
             <div className="mt-2 flex items-center gap-2">
@@ -189,7 +189,7 @@ export default function ProfileDropdown() {
             </div>
           </div>
           
-          <div className="py-2">
+          <div className="py-2 overflow-y-auto flex-1 min-h-0">
             {menuItems.map((item, index) => {
               const isPRLink = item.title === 'PR Dashboard';
               const isNewPR = isPRLink && !prLinkClicked;
@@ -270,7 +270,7 @@ export default function ProfileDropdown() {
             })}
           </div>
 
-          <div className="border-t border-gray-200 p-2">
+          <div className="border-t border-gray-200 p-2 flex-shrink-0 bg-white">
             <form action={signOut}>
               <button
                 type="submit"

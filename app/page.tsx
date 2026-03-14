@@ -251,12 +251,12 @@ export default async function HomePage() {
                 >
                   <div className="bg-gray-50 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 ring-1 ring-gray-100 hover:ring-purple-200">
                     {hat.mainHatImage && (
-                      <div className="relative h-80 md:h-96 w-full overflow-hidden">
+                      <div className="relative h-96 w-full overflow-hidden">
                         <WixImage
                           src={hat.mainHatImage}
                           alt={hat.title}
                           fill
-                          className="object-contain group-hover:scale-105 transition-transform duration-300"
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         />
                       </div>
@@ -429,6 +429,49 @@ export default async function HomePage() {
           <Link href="/the-runway">
             <RainbowButton variant="primary">{t('common.experienceRunway')}</RainbowButton>
           </Link>
+        </div>
+      </section>
+
+      {/* Auction & Raffles — left: Auction, right: Raffles */}
+      <section className="relative py-16 md:py-20 bg-gradient-to-br from-purple-50 via-pink-50 to-amber-50 overflow-hidden">
+        <PaintDrips variant="cta" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-900 mb-3">{t('home.auctionRafflesTitle')}</h2>
+            <p className="text-lg text-gray-600 max-w-xl mx-auto">
+              {t('home.auctionRafflesSubtext')}
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <Link
+              href="/art-auction"
+              className="group block bg-white rounded-2xl p-8 md:p-10 shadow-xl hover:shadow-2xl transition-all duration-300 ring-2 ring-purple-100 hover:ring-purple-300"
+            >
+              <div className="text-5xl mb-4">🎨</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">{t('home.auctionBlockTitle')}</h3>
+              <p className="text-gray-600 mb-6">
+                {t('home.auctionBlockText')}
+              </p>
+              <span className="inline-flex items-center font-semibold text-purple-600 group-hover:text-purple-700">
+                {t('home.auctionBlockLink')}
+              </span>
+            </Link>
+
+            <Link
+              href="/raffles"
+              className="group block bg-white rounded-2xl p-8 md:p-10 shadow-xl hover:shadow-2xl transition-all duration-300 ring-2 ring-amber-100 hover:ring-amber-300"
+            >
+              <div className="text-5xl mb-4">🎟️</div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-3">{t('home.rafflesBlockTitle')}</h3>
+              <p className="text-gray-600 mb-6">
+                {t('home.rafflesBlockText')}
+              </p>
+              <span className="inline-flex items-center font-semibold text-amber-600 group-hover:text-amber-700">
+                {t('home.rafflesBlockLink')}
+              </span>
+            </Link>
+          </div>
         </div>
       </section>
 
