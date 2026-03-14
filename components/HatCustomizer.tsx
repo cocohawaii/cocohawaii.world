@@ -1721,7 +1721,7 @@ export default function HatCustomizer() {
                     <div
                       key={form}
                       onClick={() => handleShapeSelect(form)}
-                      className="group bg-white rounded-lg p-8 border-2 border-gray-200 hover:border-pink-300 hover:shadow-xl transition-all duration-300 transform hover:scale-105 min-h-[450px] flex flex-col cursor-pointer"
+                      className="group bg-white rounded-lg p-8 border-2 border-gray-200 hover:border-pink-300 hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] min-h-[450px] flex flex-col cursor-pointer"
                     >
                       <div className="relative h-64 w-full mb-6 rounded-lg overflow-hidden bg-white flex-shrink-0">
                         {hatShapeImages[form] ? (
@@ -1729,7 +1729,7 @@ export default function HatCustomizer() {
                             src={hatShapeImages[form]}
                             alt={`${form} hat shape`}
                             fill
-                            className="object-cover group-hover:scale-110 transition-transform duration-300"
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
                             sizes="(max-width: 768px) 100vw, 25vw"
                           />
                         ) : (
